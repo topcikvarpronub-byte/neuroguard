@@ -1105,17 +1105,25 @@ with tabs[4]:
 
 
 # ------------------------------------------------------------------------------
-# ВКЛАДКА 6: ИНТЕЛЛЕКТУАЛЬНАЯ БАЗА ЗНАНИЙ (40 КНИГ ИЗ LIBRARY_DATA.PY)
+# ВКЛАДКА 6: ИНТЕЛЛЕКТУАЛЬНАЯ БАЗА ЗНАНИЙ (40 КНИГ С ИНТЕРАКТИВНЫМ СТАТУСОМ)
 # ------------------------------------------------------------------------------
 with tabs[5]:
     st.markdown("#### 📚 Фундаментальная библиотека оператора (40 книг)")
     st.caption("Отборная литература по алгоритмам, когнитивной психологии, биохакингу ЦНС и спортивной дисциплине.")
 
-    # Сводка по библиотеке
+    # Инициализация интерактивных статусов книг в сессии
+    if "book_statuses" not in st.session_state:
+        st.session_state.book_statuses = {
+            b["title"]: b["status"]
+            for sec in LIBRARY_CATALOG.values()
+            for b in sec
+        }
+
+    # Сводка по библиотеке с учетом живых статусов
     all_books_flat = [b for sec in LIBRARY_CATALOG.values() for b in sec]
-    read_cnt = sum(1 for b in all_books_flat if b["status"] == "Прочитано")
-    proc_cnt = sum(1 for b in all_books_flat if b["status"] == "В процессе")
-    plan_cnt = sum(1 for b in all_books_flat if b["status"] == "В планах")
+    read_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "Прочитано")
+    proc_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "В процессе")
+    plan_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "В планах")
 
     lb_m1, lb_m2, lb_m3 = st.columns(3)
     lb_m1.metric("✅ Прочитано полностью", f"{read_cnt} книг")
@@ -1135,7 +1143,8 @@ with tabs[5]:
         if lib_section != "Все разделы" and sec_name != lib_section:
             continue
         for b in book_list:
-            if status_book_filter != "Все статусы" and b["status"] != status_book_filter:
+            curr_st = st.session_state.book_statuses.get(b["title"], b["status"])
+            if status_book_filter != "Все статусы" and curr_st != status_book_filter:
                 continue
             if book_search.strip():
                 q_b = book_search.strip().lower()
@@ -1143,25 +1152,41 @@ with tabs[5]:
                     continue
             b_copy = b.copy()
             b_copy["section"] = sec_name
+            b_copy["live_status"] = curr_st
             books_to_show.append(b_copy)
 
     st.caption(f"Отображено книг: {len(books_to_show)} из {len(all_books_flat)}")
 
+    status_options = ["Прочитано", "В процессе", "В планах"]
     b_cols = st.columns(2)
     for idx, book in enumerate(books_to_show):
-        status_color = "#3fb950" if book["status"] == "Прочитано" else ("#58a6ff" if book["status"] == "В процессе" else "#8b949e")
+        b_title = book["title"]
+        curr_status = book["live_status"]
+        status_color = "#3fb950" if curr_status == "Прочитано" else ("#58a6ff" if curr_status == "В процессе" else "#8b949e")
+
         with b_cols[idx % 2]:
             st.markdown(f"""
-            <div class="linear-card">
+            <div class="linear-card" style="margin-bottom: 6px;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                        <div style="font-weight:700; font-size:0.98rem;">📖 {book['title']}</div>
+                        <div style="font-weight:700; font-size:0.98rem;">📖 {b_title}</div>
                         <div style="font-size:0.8rem; color:#8b949e; margin-top:2px;">Автор: <b>{book['author']}</b> • {book['section']}</div>
                     </div>
-                    <span class="pill-badge" style="color:{status_color}; border-color:{status_color};">{book['status']}</span>
+                    <span class="pill-badge" style="color:{status_color}; border-color:{status_color};">{curr_status}</span>
                 </div>
                 <div style="font-size:0.84rem; color:#c9d1d9; margin-top:10px; line-height:1.45;">
                     {book['desc']}
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+            new_st = st.selectbox(
+                f"Статус книги {b_title}",
+                options=status_options,
+                index=status_options.index(curr_status),
+                key=f"bk_st_{b_title}",
+                label_visibility="collapsed"
+            )
+            if new_st != curr_status:
+                st.session_state.book_statuses[b_title] = new_st
+                st.rerun()
