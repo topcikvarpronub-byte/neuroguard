@@ -84,12 +84,12 @@ class DatabaseManager:
             )
         """)
 
-        # 5. НОВАЯ ТАБЛИЦА: Глобальные цели (Год / Месяц)
+        # 5. Таблица целей (Год / Месяц)
         c.execute("""
             CREATE TABLE IF NOT EXISTS user_goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
-                goal_period TEXT NOT NULL, -- 'month' или 'year'
+                goal_period TEXT NOT NULL,
                 goal_title TEXT NOT NULL,
                 target_value REAL NOT NULL,
                 current_value REAL DEFAULT 0.0,
@@ -239,9 +239,8 @@ class DatabaseManager:
     def get_goals(cls, user_id: int) -> pd.DataFrame:
         conn = cls.get_conn()
         df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
-        conn.close()
+        
         if df.empty:
-            # Создаем дефолтные цели, если их нет
             c = conn.cursor()
             defaults = [
                 (user_id, 'month', 'Закрыть план на 100% дней', 30, 5, 'дн'),
@@ -251,10 +250,9 @@ class DatabaseManager:
             ]
             c.executemany("INSERT INTO user_goals (user_id, goal_period, goal_title, target_value, current_value, unit) VALUES (?, ?, ?, ?, ?, ?)", defaults)
             conn.commit()
-            conn.close()
-            conn = cls.get_conn()
             df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
-            conn.close()
+            
+        conn.close()
         return df
 
     @classmethod
