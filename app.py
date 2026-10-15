@@ -1,10 +1,15 @@
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
 import pandas as pd
 import streamlit as st
 
 from database import DatabaseManager
 from engine import CoreEngine
+
+try:
+    from library_data import LIBRARY_CATALOG
+except ImportError:
+    LIBRARY_CATALOG = {}
 
 # --- 1. НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(
@@ -15,11 +20,88 @@ st.set_page_config(
 
 DatabaseManager.init_db()
 
+
+# --- ДОПОЛНИТЕЛЬНЫЕ ТАБЛИЦЫ БД ДЛЯ НОВЫХ МОДУЛЕЙ ---
+def init_extended_tables():
+    conn = DatabaseManager.get_conn()
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS energy_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            log_date TEXT,
+            period TEXT,
+            energy_lvl INTEGER,
+            focus_lvl INTEGER,
+            stress_lvl INTEGER,
+            note TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS nutrition_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            log_date TEXT,
+            calories INTEGER,
+            protein INTEGER,
+            fats INTEGER,
+            carbs INTEGER,
+            water_ml INTEGER,
+            workout_done TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS book_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            book_title TEXT,
+            category TEXT,
+            status TEXT,
+            insight TEXT,
+            updated_at TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS custom_quests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            quest_text TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+init_extended_tables()
+
+# --- ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ СЕССИИ ПРИ ОБНОВЛЕНИИ (F5) ---
 if "page" not in st.session_state:
     st.session_state.page = "landing"
 
 if "current_user" not in st.session_state:
     st.session_state.current_user = None
+
+# Восстановление пользователя из URL-параметра при перезагрузке страницы
+try:
+    saved_uname = st.query_params.get("u", None)
+    if st.session_state.current_user is None and saved_uname:
+        conn = DatabaseManager.get_conn()
+        c = conn.cursor()
+        c.execute("SELECT id, username, is_pro FROM users WHERE username = ?", (saved_uname,))
+        row = c.fetchone()
+        conn.close()
+        if row:
+            st.session_state.current_user = {
+                "id": row[0],
+                "username": row[1],
+                "is_pro": bool(row[2])
+            }
+            st.session_state.page = "dashboard"
+except Exception:
+    pass
+
+if st.session_state.current_user is not None and st.session_state.page == "landing":
+    st.session_state.page = "dashboard"
 
 # --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ (TRUE GLASSMORPHISM BENTO) ---
 bg_main = "#05070b"
@@ -76,6 +158,18 @@ st.markdown(f"""
         background: linear-gradient(135deg, rgba(241,224,90,0.25), rgba(15,23,40,0.95)) !important;
         color: #f1e05a !important;
     }}
+    .hyperfocus-pill {{
+        border: 1px solid #ffd700 !important;
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.35), rgba(255, 140, 0, 0.2)) !important;
+        color: #ffd700 !important;
+        box-shadow: 0 0 25px rgba(255, 215, 0, 0.45) !important;
+    }}
+    .penalty-pill {{
+        border: 1px solid #f85149 !important;
+        background: linear-gradient(135deg, rgba(248, 81, 73, 0.3), rgba(15, 23, 40, 0.95)) !important;
+        color: #f85149 !important;
+        box-shadow: 0 0 20px rgba(248, 81, 73, 0.35) !important;
+    }}
     .ach-card {{
         background: rgba(15, 23, 40, 0.75);
         backdrop-filter: blur(12px);
@@ -109,7 +203,20 @@ st.markdown(f"""
         box-shadow: 0 0 35px rgba(88, 166, 255, 0.2);
         backdrop-filter: blur(12px);
     }}
-    
+    .tl-box {{
+        border-radius: 14px;
+        padding: 14px;
+        background: rgba(15, 23, 40, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 10px;
+    }}
+    .book-card {{
+        background: linear-gradient(180deg, rgba(16, 24, 42, 0.9) 0%, rgba(9, 14, 24, 0.95) 100%);
+        border: 1px solid rgba(88, 166, 255, 0.2);
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 14px;
+    }}
     /* СТИЛИ ПРЕМИАЛЬНОГО САЙТА */
     .saas-hero {{
         text-align: center;
@@ -127,6 +234,160 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (УРОВНИ, СТРИКИ, БАЗА КНИГ) ---
+def get_cyber_title(lvl: int):
+    if lvl >= 25:
+        return "🌌 Абсолютный Монарх Сингулярности", "#ffd700"
+    elif lvl >= 20:
+        return "👑 Теневой Монарх S-Ранга", "#f1e05a"
+    elif lvl >= 15:
+        return "⚡ Кибер-Архитектор Матрицы", "#a371f7"
+    elif lvl >= 10:
+        return "🌟 Командор A-Ранга", "#3fb950"
+    elif lvl >= 5:
+        return "🛡️ Рыцарь B-Ранга", "#58a6ff"
+    elif lvl >= 2:
+        return "⚔️ Охотник C-Ранга", "#79c0ff"
+    return "🌱 Неофит Системы", "#8b949e"
+
+
+def calculate_traffic_light_streaks(df_rpg: pd.DataFrame):
+    """
+    Считает стрик (не прерывается, пока нет >3 пропущенных дней подряд),
+    количество 🟢 зеленых, 🟡 желтых, 🔴 красных дней и % закрытия недели/месяца.
+    """
+    if df_rpg is None or df_rpg.empty or "log_date" not in df_rpg.columns:
+        return {
+            "streak": 0,
+            "green": 0,
+            "yellow": 0,
+            "red": 0,
+            "week_pct": 0,
+            "month_pct": 0,
+            "history": []
+        }
+
+    df_sorted = df_rpg.copy()
+    df_sorted["parsed_date"] = pd.to_datetime(df_sorted["log_date"], errors="coerce").dt.date
+    df_sorted = df_sorted.dropna(subset=["parsed_date"]).sort_values("parsed_date", ascending=False)
+    date_map = {}
+    for _, r in df_sorted.iterrows():
+        d = r["parsed_date"]
+        if d not in date_map:
+            date_map[d] = int(r.get("plan_percent", 0))
+
+    today_d = date.today()
+    streak = 0
+    consecutive_missed = 0
+    check_d = today_d
+
+    # Проверяем до 365 дней назад; стрик живет, пока пропущено <= 3 дней подряд
+    for _ in range(365):
+        if check_d in date_map:
+            pct = date_map[check_d]
+            if pct >= 50:
+                streak += 1
+                consecutive_missed = 0
+            else:
+                consecutive_missed += 1
+        else:
+            consecutive_missed += 1
+
+        if consecutive_missed > 3:
+            break
+        check_d -= timedelta(days=1)
+
+    green, yellow, red = 0, 0, 0
+    history_records = []
+
+    # Последние 30 дней для статистики месяца и светофора
+    month_scores = []
+    week_scores = []
+    for i in range(30):
+        d = today_d - timedelta(days=i)
+        if d in date_map:
+            p = date_map[d]
+            if p >= 85:
+                green += 1
+                status = "🟢 Выполнено"
+                col = "#3fb950"
+            elif p >= 50:
+                yellow += 1
+                status = "🟡 Средне"
+                col = "#d29922"
+            else:
+                red += 1
+                status = "🔴 Слабо"
+                col = "#f85149"
+            month_scores.append(p)
+            if i < 7:
+                week_scores.append(p)
+            history_records.append({"date": str(d), "pct": p, "status": status, "color": col})
+        else:
+            red += 1
+            month_scores.append(0)
+            if i < 7:
+                week_scores.append(0)
+            history_records.append({"date": str(d), "pct": 0, "status": "🔴 Пропуск", "color": "#f85149"})
+
+    # Процент по реально заполненным дням или по календарной неделе/месяцу
+    logged_week = [ date_map[today_d - timedelta(days=i)] for i in range(7) if (today_d - timedelta(days=i)) in date_map ]
+    logged_month = [ date_map[today_d - timedelta(days=i)] for i in range(30) if (today_d - timedelta(days=i)) in date_map ]
+
+    week_pct = int(round(sum(logged_week) / max(1, len(logged_week)))) if logged_week else 0
+    month_pct = int(round(sum(logged_month) / max(1, len(logged_month)))) if logged_month else 0
+
+    return {
+        "streak": streak,
+        "green": green,
+        "yellow": yellow,
+        "red": red,
+        "week_pct": week_pct,
+        "month_pct": month_pct,
+        "history": history_records
+    }
+
+
+DEFAULT_EXTENDED_LIBRARY = {
+    "🧠 Психология & Менталка": [
+        {"title": "Думай медленно... решай быстро", "author": "Даниэль Канеман", "status": "Прочитано", "desc": "Фундаментальный труд о когнитивных искажениях и двух системах мышления."},
+        {"title": "Атомные привычки", "author": "Джеймс Клир", "status": "Прочитано", "desc": "Система формирования полезных привычек и дисциплины через микро-шаги."},
+        {"title": "Поток: Психология оптимального переживания", "author": "Михай Чиксентмихайи", "status": "Прочитано", "desc": "Как входить в состояние гиперфокуса и получать максимум от сложной работы."},
+        {"title": "Эмоциональный интеллект", "author": "Дэниел Гоулман", "status": "В процессе", "desc": "Контроль эмоций, стрессоустойчивость и лидерство."},
+        {"title": "Психология влияния", "author": "Роберт Чалдини", "status": "В планах", "desc": "Механизмы убеждения, переговоров и защиты от манипуляций."},
+        {"title": "Не навреди. Истории о жизни, смерти и нейрохирургии", "author": "Генри Марш", "status": "В планах", "desc": "Взгляд на работу мозга, принятие решений под давлением и ответственность."},
+        {"title": "Человек в поисках смысла", "author": "Виктор Франкл", "status": "Прочитано", "desc": "Психология несгибаемой воли и преодоления экстремальных испытаний."},
+        {"title": "Гибкое сознание", "author": "Кэрол Дуэк", "status": "В планах", "desc": "Установка на рост против фиксированного мышления в спорте и науке."}
+    ],
+    "🧬 Биохакинг & Сон": [
+        {"title": "Зачем мы спим", "author": "Мэттью Уокер", "status": "Прочитано", "desc": "Наука о сне: как фазы сна перезагружают ЦНС, память и мышечный рост."},
+        {"title": "Биохакинг мозга", "author": "Дэйв Эспри", "status": "В процессе", "desc": "Практическое руководство по разгону митохондрий, нейрогенезу и фокусу."},
+        {"title": "Зажги себя! Жизнь в движении", "author": "Джон Рейти", "status": "Прочитано", "desc": "Как физические нагрузки и спорт напрямую выращивают новые нейроны."},
+        {"title": "Кишечник и мозг", "author": "Дэвид Перлмуттер", "status": "В планах", "desc": "Влияние питания и микробиома на скорость мышления и защиту от воспалений."},
+        {"title": "Кислородное преимущество", "author": "Патрик Маккеон", "status": "В процессе", "desc": "Дыхательные протоколы для повышения выносливости и снижения пульса."},
+        {"title": "Циркадный код", "author": "Сатчин Панда", "status": "В планах", "desc": "Как синхронизировать биоритмы, свет, питание и тренировки для максимума энергии."},
+        {"title": "Дофаминовое поколение", "author": "Анна Лембке", "status": "Прочитано", "desc": "Как перезагрузить систему вознаграждения мозга и избавиться от дешевого дофамина."}
+    ],
+    "💻 Продуктивность & Кодинг": [
+        {"title": "Чистый код (Clean Code)", "author": "Роберт Мартин", "status": "В процессе", "desc": "Стандарты индустрии по созданию масштабируемой и чистой архитектуры."},
+        {"title": "Грокаем алгоритмы", "author": "Адитья Бхаргава", "status": "Прочитано", "desc": "Наглядный фундамент по графам, динамическому программированию и структурам данных."},
+        {"title": "Алгоритмы. Построение и анализ", "author": "Томас Кормен", "status": "В процессе", "desc": "Библия олимпиадного программирования и компьютерных наук."},
+        {"title": "В работу с головой (Deep Work)", "author": "Кэл Ньюпорт", "status": "Прочитано", "desc": "Методика экстремальной концентрации без отвлечений в цифровую эпоху."},
+        {"title": "Совершенный код", "author": "Стив Макконнелл", "status": "В планах", "desc": "Полная энциклопедия проектирования профессиональных программных систем."},
+        {"title": "Python. К вершинам мастерства (Fluent Python)", "author": "Лучано Рамальо", "status": "В процессе", "desc": "Глубокое погружение в устройство языка Python для продвинутых разработчиков."},
+        {"title": "От нуля к единице (Zero to One)", "author": "Питер Тиль", "status": "Прочитано", "desc": "Как создавать технологические стартапы и монополии будущего."}
+    ],
+    "🥋 Философия Воина & Экстрим": [
+        {"title": "Книга Пяти Колец", "author": "Миямото Мусаси", "status": "Прочитано", "desc": "Легендарный трактат непобежденного мастера меча о стратегии, духе и тайминге."},
+        {"title": "Ничто не может меня сломить (Can't Hurt Me)", "author": "Дэвид Гоггинс", "status": "Прочитано", "desc": "Правило 40%, выход за пределы боли и ультрамарафонская ментальная броня."},
+        {"title": "В разреженном воздухе", "author": "Джон Кракауэр", "status": "В процессе", "desc": "Хроника штурма Эвереста на высоте более 8000 метров в зоне смерти."},
+        {"title": "Искусство войны", "author": "Сунь-Цзы", "status": "Прочитано", "desc": "Древняя военная стратегия, применимая в поединках, бизнесе и олимпиадах."},
+        {"title": "Бусидо. Кодекс самурая", "author": "Инадзо Нитобэ", "status": "В планах", "desc": "Дисциплина, честь и хладнокровие восточных боевых искусств."},
+        {"title": "Тренировочная зона (Convict Conditioning)", "author": "Пол Уэйд", "status": "Прочитано", "desc": "Прогрессии калистеники и работы с собственным весом до сверхчеловеческой силы."}
+    ]
+}
+
+
 # =====================================================================
 # ЭКРАН 1: 🌟 ПРЕМИАЛЬНЫЙ СААС-ЛЕНДИНГ
 # =====================================================================
@@ -141,7 +402,7 @@ if st.session_state.page == "landing":
 
     try:
         st.image("hero.jpg", use_container_width=True)
-    except:
+    except Exception:
         pass
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -175,7 +436,7 @@ if st.session_state.page == "landing":
         """, unsafe_allow_html=True)
         try:
             st.image(img_file, use_container_width=True)
-        except:
+        except Exception:
             pass
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
@@ -183,25 +444,25 @@ if st.session_state.page == "landing":
 
     with bc1:
         render_bento_module(
-            "🛡️", "Био-Мониторинг ЦНС",
-            "Интеллектуальный трекинг сна, экранного времени и спазма глаз. Предиктивный движок защищает от выгорания.",
+            "🛡️", "Био-Мониторинг ЦНС & AI-Предиктор",
+            "Интеллектуальный трекинг сна, экранного времени, энергии и спазма глаз. Предиктивный движок включает Красный протокол при риске выгорания.",
             "bio.jpg"
         )
         render_bento_module(
-            "🏆", "Зал Славы (36 Трофеев)",
-            "Элитная система достижений за успехи в учебе, кодинге, олимпиадах и спортивных единоборствах.",
+            "🏆", "Зал Славы (100 Трофеев)",
+            "Элитная система достижений за успехи в учебе, кодинге, олимпиадах, жиме 100+ кг, восхождениях и боевых искусствах.",
             "trophies.jpg"
         )
 
     with bc2:
         render_bento_module(
-            "⚔️", "RPG-Прокачка & Heatmap",
-            "Геймификация рутины: уровни, очки опыта (XP), ежедневные квесты и GitHub-style тепловая карта активности.",
+            "⚔️", "RPG-Прокачка, Гиперфокус & Светофор",
+            "Геймификация рутины: уровни, кибер-титулы, режим Гиперфокуса (+50% XP), светофорные стрики без жесткого сброса и тепловая карта.",
             "rpg.jpg"
         )
         render_bento_module(
-            "🧘", "Нейро-Резет & Советник",
-            "Интерактивные таймеры пауз, дыхательные протоколы и умный советник по контрастному душу, сауне и растяжке.",
+            "🧘", "Нейро-Резет, Тренировки & База Знаний",
+            "Интерактивные таймеры пауз, Табата-секундомер, трекер КБЖУ, умный советник и встроенная библиотека топ-литературы.",
             "reset.jpg"
         )
 
@@ -250,6 +511,10 @@ elif st.session_state.page == "auth":
                 else:
                     st.session_state.current_user = user_obj
                     st.session_state.page = "dashboard"
+                    try:
+                        st.query_params["u"] = user_obj["username"]
+                    except Exception:
+                        pass
                     st.success(f"Добро пожаловать, {user_obj['username']}!")
                     st.rerun()
 
@@ -263,16 +528,52 @@ elif st.session_state.page == "dashboard":
         st.session_state.page = "auth"
         st.rerun()
 
+    uid = cur_u["id"]
+    uname = cur_u["username"]
+    is_pro = cur_u["is_pro"]
+
+    df_logs = DatabaseManager.load_health_logs(uid)
+    df_rpg = DatabaseManager.load_rpg_logs(uid)
+
+    # Расчет опыта, уровня, титула и режима Гиперфокуса / Штрафа
+    hist_xp = int(df_rpg["xp_earned"].sum()) if (df_rpg is not None and not df_rpg.empty and "xp_earned" in df_rpg.columns) else 0
+    player_lvl = (hist_xp // 500) + 1
+    xp_in_current_lvl = hist_xp % 500
+    lvl_progress_pct = xp_in_current_lvl / 500.0
+    cyber_title, title_col = get_cyber_title(player_lvl)
+
+    last_readiness = int(df_logs.iloc[0]["readiness_score"]) if (df_logs is not None and not df_logs.empty and "readiness_score" in df_logs.columns) else 75
+    last_plan_pct = int(df_rpg.iloc[0]["plan_percent"]) if (df_rpg is not None and not df_rpg.empty and "plan_percent" in df_rpg.columns) else 80
+
+    # Проверка Гиперфокуса (+50% XP) или Истощения (-50 XP)
+    is_hyperfocus = (last_plan_pct >= 95 and last_readiness >= 75)
+    is_exhausted = (last_plan_pct < 50 and last_readiness < 50)
+
+    streak_data = calculate_traffic_light_streaks(df_rpg)
+
     # САЙДБАР
     with st.sidebar:
         st.header("🔐 Аккаунт")
         pro_badge = "💎 PRO" if cur_u["is_pro"] else "🆓 FREE"
         st.markdown(f"Профиль: **{cur_u['username']}** ({pro_badge})")
+        st.markdown(f"Титул: <b style='color:{title_col};'>{cyber_title}</b>", unsafe_allow_html=True)
+        st.progress(lvl_progress_pct, text=f"LVL {player_lvl} ({xp_in_current_lvl}/500 XP до LVL {player_lvl + 1})")
 
         if st.button("🚪 Выйти из аккаунта", use_container_width=True):
             st.session_state.current_user = None
             st.session_state.page = "landing"
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
             st.rerun()
+
+        st.divider()
+        st.header("🔥 Светофор Стриков")
+        st.markdown(f"**Активная серия:** `{streak_data['streak']} дн.` *(живет до 3 пропусков)*")
+        st.markdown(f"🟢 Отлично: **{streak_data['green']}** | 🟡 Средне: **{streak_data['yellow']}** | 🔴 Пропуск: **{streak_data['red']}**")
+        st.markdown(f"📊 Закрытие недели: **{streak_data['week_pct']}%**")
+        st.markdown(f"📅 Закрытие месяца: **{streak_data['month_pct']}%**")
 
         st.divider()
         st.header("💎 NeuroGuard PRO")
@@ -289,42 +590,47 @@ elif st.session_state.page == "dashboard":
         st.divider()
         dark_mode = st.toggle("🌙 Eye-Safe Mode (Тёмная тема)", value=True)
 
-    uid = cur_u["id"]
-    uname = cur_u["username"]
-    is_pro = cur_u["is_pro"]
-
-    df_logs = DatabaseManager.load_health_logs(uid)
-    df_rpg = DatabaseManager.load_rpg_logs(uid)
-
     # ВЕРХНИЙ HUD-БАР
-    hist_xp = int(df_rpg["xp_earned"].sum()) if (df_rpg is not None and not df_rpg.empty and "xp_earned" in df_rpg.columns) else 0
-    player_lvl = (hist_xp // 500) + 1
-    last_readiness = int(df_logs.iloc[0]["readiness_score"]) if (df_logs is not None and not df_logs.empty and "readiness_score" in df_logs.columns) else 75
     rank_txt, rank_col = CoreEngine.get_rank_badge(last_readiness)
     tier_pill = '<span class="hud-pill pro-pill">💎 PRO x1.25 XP</span>' if is_pro else '<span class="hud-pill">🆓 FREE</span>'
 
+    if is_hyperfocus:
+        mode_pill = '<span class="hud-pill hyperfocus-pill">🔥 ГИПЕРФОКУС (+50% XP)</span>'
+    elif is_exhausted:
+        mode_pill = '<span class="hud-pill penalty-pill">⚠️ ИСТОЩЕНИЕ (-50 XP)</span>'
+    else:
+        mode_pill = '<span class="hud-pill">⚡ ШТАТНЫЙ РЕЖИМ</span>'
+
     st.markdown(f"""
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:12px;">
-        <h3 style="margin:0; font-weight:700;">⚡ {uname}</h3>
+        <div>
+            <h3 style="margin:0; font-weight:800;">⚡ {uname} <span style="font-size:15px; color:{title_col}; font-weight:600;">• {cyber_title}</span></h3>
+        </div>
         <div class="hud-row" style="margin:0;">
+            {mode_pill}
             {tier_pill}
             <span class="hud-pill" style="border-color:{rank_col}; color:{rank_col};">{rank_txt}</span>
+            <span class="hud-pill">🔥 Стрик: {streak_data['streak']} дн.</span>
             <span class="hud-pill">🏅 LVL {player_lvl}</span>
             <span class="hud-pill">✨ {hist_xp} XP</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    tab_bio, tab_rpg, tab_goals, tab_ach, tab_sos, tab_rep = st.tabs([
-        "🛡️ БИО",
-        "⚔️ СТАТЫ",
+    tab_bio, tab_rpg, tab_train, tab_books, tab_goals, tab_ach, tab_sos, tab_rep = st.tabs([
+        "🛡️ БИО & ЭНЕРГИЯ",
+        "⚔️ СТАТЫ & СТРИКИ",
+        "🏋️ ТРЕНИРОВКИ & ПИТАНИЕ",
+        "📚 ЛИТЕРАТУРА",
         "🎯 ЦЕЛИ",
-        "🏆 36 ТРОФЕЕВ",
+        "🏆 100 ТРОФЕЕВ",
         "🧘 РЕЗЕТ",
         "📄 ОТЧЕТ & ТОП"
     ])
 
-    # ВКЛАДКА 1: 🛡️ БИО
+    # =================================================================
+    # ВКЛАДКА 1: 🛡️ БИО, AI-ПРЕДИКТОР & ДНЕВНИК ЭНЕРГИИ
+    # =================================================================
     with tab_bio:
         col_input, col_result = st.columns([1.1, 1])
         with col_input:
@@ -371,6 +677,27 @@ elif st.session_state.page == "dashboard":
             </div>
             """, unsafe_allow_html=True)
 
+            # AI-Предиктор 7-дневного тренда ЦНС
+            st.markdown("##### 🤖 AI-Предиктор тренда ЦНС (7 дней)")
+            if df_logs is not None and not df_logs.empty and len(df_logs) >= 2:
+                h7 = df_logs.head(7)
+                avg_slp = h7["sleep_hours"].mean()
+                avg_scr = h7["study_hours"].mean()
+                low_slp_days = int((h7["sleep_hours"] < 6.5).sum())
+                if low_slp_days >= 3 or (avg_slp < 6.5 and avg_scr > 7.5):
+                    st.error(
+                        f"🚨 **КРАСНЫЙ ПРОТОКОЛ ЦНС АКТИВИРОВАН:** За последние дни зафиксировано {low_slp_days} дн. недосыпа "
+                        f"(средний сон {avg_slp:.1f}ч при экране {avg_scr:.1f}ч). Запрещены тяжелые проходки в жиме и контактные спарринги! "
+                        f"Приоритет: сон 8.5+ часов и пальминг."
+                    )
+                else:
+                    st.success(
+                        f"🧠 **Прогноз ИИ благоприятный:** Средний сон за неделю {avg_slp:.1f}ч, экран {avg_scr:.1f}ч. "
+                        f"Нервная система готова к пиковым когнитивным и силовым нагрузкам."
+                    )
+            else:
+                st.caption("Накопите минимум 2 записи в био-базе для запуска 7-дневного AI-прогноза.")
+
             if analyze_btn:
                 DatabaseManager.save_health_log((
                     uid, str(log_date), sleep_hours, sleep_quality, study_hours,
@@ -380,15 +707,81 @@ elif st.session_state.page == "dashboard":
                 st.success("✅ Био-статус сохранен!")
                 st.rerun()
 
-    # ВКЛАДКА 2: ⚔️ СТАТЫ & ГИТХАБ-ТЕПЛОВАЯ КАРТА
+        st.divider()
+        # --- ДНЕВНИК ЭНЕРГИИ И ФОКУСА (УТРО / ДЕНЬ / ВЕЧЕР) ---
+        st.markdown("#### ⚡ Дневник Энергии и Ментального Фокуса (Пики продуктивности)")
+        en_c1, en_c2 = st.columns([1, 1.2])
+        with en_c1:
+            en_period = st.radio("Период суток:", ["🌅 Утро", "☀️ День", "🌙 Вечер"], horizontal=True)
+            en_val = st.slider("🔋 Уровень физической энергии (1-10)", 1, 10, 8, key="en_slider")
+            foc_val = st.slider("🎯 Концентрация и ясность ума (1-10)", 1, 10, 8, key="foc_slider")
+            str_val = st.slider("🌋 Уровень стресса / напряжения (1-10)", 1, 10, 3, key="str_slider")
+            en_note = st.text_input("Короткая заметка по состоянию:", placeholder="После тренировки и холодного душа фокус 10/10")
+
+            if st.button("💾 Зафиксировать импульс энергии", use_container_width=True):
+                conn = DatabaseManager.get_conn()
+                c = conn.cursor()
+                c.execute(
+                    "INSERT INTO energy_logs (user_id, log_date, period, energy_lvl, focus_lvl, stress_lvl, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (uid, str(date.today()), en_period, en_val, foc_val, str_val, en_note.strip())
+                )
+                conn.commit()
+                conn.close()
+                st.success("✅ Запись энергии добавлена!")
+                st.rerun()
+
+        with en_c2:
+            conn = DatabaseManager.get_conn()
+            df_en = pd.read_sql_query(
+                "SELECT log_date, period, energy_lvl, focus_lvl, stress_lvl, note FROM energy_logs WHERE user_id = ? ORDER BY id DESC LIMIT 15",
+                conn, params=(uid,)
+            )
+            conn.close()
+            if not df_en.empty:
+                st.markdown("##### 📈 График твоих биоритмов (Энергия vs Фокус vs Стресс)")
+                chart_en = df_en[["energy_lvl", "focus_lvl", "stress_lvl"]].iloc[::-1].reset_index(drop=True)
+                st.line_chart(chart_en)
+                st.dataframe(df_en.head(5), use_container_width=True, hide_index=True)
+            else:
+                st.info("Запиши свой первый замер энергии (Утро / День / Вечер), чтобы увидеть кривую продуктивности!")
+
+    # =================================================================
+    # ВКЛАДКА 2: ⚔️ СТАТЫ, КОНСТРУКТОР КВЕСТОВ & СВЕТОФОРНЫЕ СТРИКИ
+    # =================================================================
     with tab_rpg:
         rpg_col1, rpg_col2 = st.columns([1.1, 1])
         with rpg_col1:
             st.markdown("#### 🎯 Квесты на день")
             rpg_date = st.date_input("📅 Дата", value=date.today(), key="rpg_date")
 
-            default_plan = "100 подтягиваний\n5 задач (ЕГЭ / Python)\n20 страниц книги\n5 раундов техники / кобудо"
-            plan_text = st.text_area("Список задач:", value=default_plan, height=100)
+            # Загрузка кастомных привычек пользователя из БД
+            conn = DatabaseManager.get_conn()
+            custom_q_df = pd.read_sql_query("SELECT id, quest_text FROM custom_quests WHERE user_id = ?", conn, params=(uid,))
+            conn.close()
+
+            with st.expander("➕ Конструктор квестов (добавить свою привычку)"):
+                new_q_txt = st.text_input("Новая ежедневная привычка:", placeholder="Например: Выпить 2.5л воды / 30 мин английского")
+                if st.button("Добавить в список квестов", use_container_width=True):
+                    if new_q_txt.strip():
+                        conn = DatabaseManager.get_conn()
+                        c = conn.cursor()
+                        c.execute("INSERT INTO custom_quests (user_id, quest_text) VALUES (?, ?)", (uid, new_q_txt.strip()))
+                        conn.commit()
+                        conn.close()
+                        st.success("Привычка добавлена в шаблон!")
+                        st.rerun()
+
+            base_quests = [
+                "100 подтягиваний",
+                "5 задач (ЕГЭ / Python)",
+                "20 страниц книги",
+                "5 раундов техники / кобудо"
+            ]
+            if not custom_q_df.empty:
+                base_quests.extend(custom_q_df["quest_text"].tolist())
+
+            default_plan = "\n".join(base_quests)
+            plan_text = st.text_area("Список задач:", value=default_plan, height=110)
 
             tasks_list = [t.strip() for t in plan_text.split("\n") if t.strip()]
             completed_tasks = 0
@@ -413,28 +806,61 @@ elif st.session_state.page == "dashboard":
             save_rpg_btn = st.button("⚔️ Зафиксировать статы", use_container_width=True, type="primary")
 
         with rpg_col2:
-            st.markdown("#### 🧬 Характеристики Персонажа")
+            st.markdown("#### 🧬 Характеристики Персонажа & Бонусы Режима")
             str_pts, agi_pts, int_pts, dsc_pts, total_actions, xp_earned = CoreEngine.calculate_rpg_stats(
                 exercises_reps, agility_drills, book_pages, topics_learned, tasks_solved, plan_percent, is_pro=is_pro
             )
+
+            # Модификатор Гиперфокуса (+50% XP) или Штрафа при провале (<50% плана)
+            mode_status_str = "Активен"
+            if plan_percent == 100:
+                xp_earned = int(round(xp_earned * 1.5))
+                mode_status_str = "🔥 ГИПЕРФОКУС (+50% XP)"
+                st.success("🔥 **АКТИВИРОВАН ГИПЕРФОКУС!** Все квесты закрыты на 100% — начисляется **+50% бонусного XP**!")
+            elif plan_percent < 50:
+                xp_earned = max(0, xp_earned - 50)
+                mode_status_str = "⚠️ ШТРАФ (-50 XP)"
+                st.warning("⚠️ **Штраф дисциплины:** Выполнено менее 50% плана (-50 XP). Но твой стрик сохраняется (до 3 пропусков подряд)!")
 
             st.markdown(f"""
             <div class="hud-row">
                 <span class="hud-pill">🎯 План: {plan_percent}%</span>
                 <span class="hud-pill">✨ +{xp_earned} XP</span>
+                <span class="hud-pill">💪 STR +{str_pts}</span>
+                <span class="hud-pill">⚡ AGI +{agi_pts}</span>
+                <span class="hud-pill">🧠 INT +{int_pts}</span>
+                <span class="hud-pill">👑 DSC +{dsc_pts}</span>
             </div>
             """, unsafe_allow_html=True)
+
+            # Сводка по закрытию недели и месяца
+            st.markdown("##### 📊 Светофорная Статистика (за 30 дней)")
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.metric("🟢 Выполнено", f"{streak_data['green']} дн.")
+            sc2.metric("🟡 Частично", f"{streak_data['yellow']} дн.")
+            sc3.metric("🔴 Пропущено", f"{streak_data['red']} дн.")
+
+            st.progress(streak_data["week_pct"] / 100.0, text=f"📅 Процент закрытия текущей недели: {streak_data['week_pct']}%")
+            st.progress(streak_data["month_pct"] / 100.0, text=f"🗓️ Процент закрытия текущего месяца: {streak_data['month_pct']}%")
 
             if save_rpg_btn:
                 DatabaseManager.save_rpg_log((
                     uid, str(rpg_date), exercises_reps, agility_drills, book_pages,
                     topics_learned, tasks_solved, plan_text, plan_percent,
-                    total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, "Активен", daily_note
+                    total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, mode_status_str, daily_note
                 ))
                 st.success("✅ Статы сохранены в БД!")
                 st.rerun()
 
         st.divider()
+        st.markdown("#### 🚦 Светофорная лента последних 14 дней (Стрик не сгорает до 3 пропусков)")
+        if streak_data["history"]:
+            pills_html = '<div class="hud-row">'
+            for item in streak_data["history"][:14]:
+                pills_html += f'<span class="hud-pill" style="border-color:{item["color"]}; color:{item["color"]};">{item["date"][5:]}: {item["status"]} ({item["pct"]}%)</span>'
+            pills_html += '</div>'
+            st.markdown(pills_html, unsafe_allow_html=True)
+
         st.markdown("#### 🔥 Тепловая карта активности (GitHub-Style Heatmap)")
         if df_rpg is not None and not df_rpg.empty and "log_date" in df_rpg.columns and "plan_percent" in df_rpg.columns:
             heat_df = df_rpg[["log_date", "plan_percent"]].sort_values("log_date")
@@ -442,13 +868,245 @@ elif st.session_state.page == "dashboard":
         else:
             st.info("Сохрани первый RPG-лог выше, чтобы активировать тепловую карту!")
 
-    # ВКЛАДКА 3: 🎯 ЦЕЛИ
+    # =================================================================
+    # ВКЛАДКА 3: 🏋️ ТРЕНИРОВКИ, СЕКУНДОМЕРЫ & ТРЕКЕР ПИТАНИЯ
+    # =================================================================
+    with tab_train:
+        st.markdown("#### 🏋️ Тренировочный Полигон: Программы, Табата и Трекер Питания")
+        tr_col1, tr_col2 = st.columns([1.1, 1])
+
+        with tr_col1:
+            st.markdown("##### 📋 Боевые и Силовые Протоколы")
+            workout_choice = st.selectbox(
+                "Выбери тренировочный комплекс:",
+                [
+                    "🔥 Калистеника: 'Сотка за 14 минут' + Горизонт",
+                    "🥋 Боевые Искусства: Каратэ / Кобудо / Самбо",
+                    "🦾 Силовой Экстрим: Штурм Жима 100+ кг и База",
+                    "🏔️ Альпинизм & Выносливость: Подготовка к Вершинам"
+                ]
+            )
+
+            if "Калистеника" in workout_choice:
+                st.info(
+                    "**Протокол Воркаута:**\n"
+                    "1. **Разминка суставов и плечевого пояса:** 7 мин.\n"
+                    "2. **Закрытый горизонт / Планш на паралетсах:** 5 подходов по 10–15 сек удержания.\n"
+                    "3. **Челлендж '100 подтягиваний':** EMOM (каждую минуту по 7–8 чистых подтягиваний) до 100 повторений.\n"
+                    "4. **Брусья с весом / Отжимания в стойке:** 4 подхода по 12–15 раз.\n"
+                    "5. **Заминка:** Вис на перекладине 90 сек для декомпрессии позвоночника."
+                )
+            elif "Боевые" in workout_choice:
+                st.info(
+                    "**Протокол Додзё (Каратэ / Кобудо / Самбо):**\n"
+                    "1. **Суставная разминка и растяжка шпагатов:** 10 мин.\n"
+                    "2. **Кихон и взрывные связки руками/ногами:** 5 раундов по 3 мин.\n"
+                    "3. **Кобудо (работа с шестом бо / нунчаку / сай):** 5 раундов на филигранный контроль и скорость.\n"
+                    "4. **Борцовская резина / проходы и броски (Самбо):** 4 серии по 20 скоростных тяг.\n"
+                    "5. **Дыхание Санчин / Концентрация:** 5 мин."
+                )
+            elif "Силовой" in workout_choice:
+                st.info(
+                    "**Протокол Железного Цеха:**\n"
+                    "1. **Жим штанги лежа (пирамида к 100+ кг):** Разминка 50кг×12, 70кг×8, 85кг×5, Рабочие 95–105кг 3×3.\n"
+                    "2. **Подтягивания с дополнительным весом (+15–25 кг):** 4×6.\n"
+                    "3. **Приседания со штангой / Становая тяга:** 4×6 с идеальной техникой спины.\n"
+                    "4. **Укрепление хвата и предплечий:** Удержание блинов щипковым хватом 3×45 сек."
+                )
+            else:
+                st.info(
+                    "**Протокол Высотной Выносливости (Эверест / Бег):**\n"
+                    "1. **Кросс в темпе пульсовой зоны 2 (135–150 уд/мин):** 5–10 км.\n"
+                    "2. **Зашагивания на высокую тумбу с рюкзаком:** 4 серии по 50 шагов.\n"
+                    "3. **Статика ног ('Стульчик' у стены):** 3 подхода по 2 минуты."
+                )
+
+            st.markdown("##### ⏱️ Интерактивные Таймеры Тренировки")
+            tm_c1, tm_c2, tm_c3 = st.columns(3)
+            timer_display = st.empty()
+            timer_bar = st.progress(0)
+
+            with tm_c1:
+                if st.button("🔥 Табата (20с/10с)", use_container_width=True, type="primary"):
+                    for s in range(20, 0, -1):
+                        timer_display.markdown(f'<div class="breath-box" style="border-color:#f85149;">🔥 РАБОТА НА МАКСИМУМ: <b>{s} сек</b></div>', unsafe_allow_html=True)
+                        timer_bar.progress((20 - s) / 20.0)
+                        time.sleep(1)
+                    for s in range(10, 0, -1):
+                        timer_display.markdown(f'<div class="breath-box" style="border-color:#3fb950;">🌿 ОТДЫХ И ДЫХАНИЕ: <b>{s} сек</b></div>', unsafe_allow_html=True)
+                        timer_bar.progress((10 - s) / 10.0)
+                        time.sleep(1)
+                    timer_display.markdown('<div class="breath-box" style="border-color:#3fb950;">✅ Цикл Табаты выполнен!</div>', unsafe_allow_html=True)
+
+            with tm_c2:
+                if st.button("🥊 Раунд (60 сек)", use_container_width=True):
+                    for s in range(60, 0, -1):
+                        timer_display.markdown(f'<div class="breath-box" style="border-color:#d29922;">🥋 БОЕВОЙ РАУНД: <b>{s} сек</b></div>', unsafe_allow_html=True)
+                        timer_bar.progress((60 - s) / 60.0)
+                        time.sleep(1)
+                    timer_display.markdown('<div class="breath-box" style="border-color:#3fb950;">🔔 ГОНГ! Раунд окончен.</div>', unsafe_allow_html=True)
+
+            with tm_c3:
+                if st.button("❄️ Отдых (45 сек)", use_container_width=True):
+                    for s in range(45, 0, -1):
+                        timer_display.markdown(f'<div class="breath-box" style="border-color:#58a6ff;">💧 ВОССТАНОВЛЕНИЕ МЕЖДУ ПОДХОДАМИ: <b>{s} сек</b></div>', unsafe_allow_html=True)
+                        timer_bar.progress((45 - s) / 45.0)
+                        time.sleep(1)
+                    timer_display.markdown('<div class="breath-box" style="border-color:#3fb950;">⚡ Время вышло! Заход на подход!</div>', unsafe_allow_html=True)
+
+        with tr_col2:
+            st.markdown("##### 🥩 Трекер Питания, КБЖУ и Водного Баланса")
+            nut_date = st.date_input("Дата рациона:", value=date.today(), key="nut_date")
+            nc1, nc2 = st.columns(2)
+            with nc1:
+                cal_in = st.number_input("🔥 Калории (ккал)", 0, 6000, 2600, 100)
+                prot_in = st.number_input("🥩 Белки (г)", 0, 400, 150, 5)
+            with nc2:
+                fats_in = st.number_input("🥑 Жиры (г)", 0, 300, 80, 5)
+                carbs_in = st.number_input("🍚 Углеводы (г)", 0, 800, 300, 10)
+
+            water_in = st.slider("💧 Выпито чистой воды (мл)", 0, 4500, 2200, 250)
+            st.progress(min(1.0, water_in / 2500.0), text=f"Водный баланс: {water_in} / 2500 мл ({int(round(water_in / 25)) }%)")
+
+            if st.button("💾 Сохранить дневной рацион и тренировку", use_container_width=True, type="primary"):
+                conn = DatabaseManager.get_conn()
+                c = conn.cursor()
+                c.execute(
+                    "INSERT INTO nutrition_logs (user_id, log_date, calories, protein, fats, carbs, water_ml, workout_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (uid, str(nut_date), cal_in, prot_in, fats_in, carbs_in, water_in, workout_choice)
+                )
+                conn.commit()
+                conn.close()
+                st.success("✅ Данные по КБЖУ, воде и тренировке сохранены!")
+                st.rerun()
+
+            conn = DatabaseManager.get_conn()
+            df_nut = pd.read_sql_query(
+                "SELECT log_date as 'Дата', calories as 'Ккал', protein as 'Белки(г)', carbs as 'Углеводы(г)', water_ml as 'Вода(мл)' FROM nutrition_logs WHERE user_id = ? ORDER BY id DESC LIMIT 7",
+                conn, params=(uid,)
+            )
+            conn.close()
+            if not df_nut.empty:
+                st.markdown("###### 📊 История питания (последние 7 записей)")
+                st.dataframe(df_nut, use_container_width=True, hide_index=True)
+
+    # =================================================================
+    # ВКЛАДКА 4: 📚 ЛИТЕРАТУРА И БАЗА ЗНАНИЙ
+    # =================================================================
+    with tab_books:
+        st.markdown("#### 📚 Интеллектуальная Библиотека по Блокам")
+
+        # Объединяем книги из library_data.py с расширенным каталогом
+        merged_library = DEFAULT_EXTENDED_LIBRARY.copy()
+        for k, v in LIBRARY_CATALOG.items():
+            if k not in merged_library:
+                merged_library[k] = v
+            else:
+                existing_titles = {b["title"] for b in merged_library[k]}
+                for item in v:
+                    if item["title"] not in existing_titles:
+                        merged_library[k].append(item)
+
+        # Загружаем пользовательские статусы и заметки из БД
+        conn = DatabaseManager.get_conn()
+        df_bnotes = pd.read_sql_query("SELECT book_title, category, status, insight FROM book_notes WHERE user_id = ?", conn, params=(uid,))
+        conn.close()
+        user_book_map = {}
+        for _, r in df_bnotes.iterrows():
+            user_book_map[r["book_title"]] = {"status": r["status"], "insight": r["insight"], "category": r["category"]}
+
+        with st.expander("➕ Добавить свою книгу или конспект в библиотеку"):
+            nb_c1, nb_c2 = st.columns(2)
+            with nb_c1:
+                nb_title = st.text_input("Название книги и автор:", placeholder="Например: Искусство схемотехники — Хоровиц")
+                nb_cat = st.selectbox("Блок литературы:", list(merged_library.keys()))
+            with nb_c2:
+                nb_status = st.selectbox("Статус чтения:", ["В процессе", "Прочитано", "В планах", "⭐ Избранное"])
+                nb_insight = st.text_input("Главный инсайт / заметка:", placeholder="Ключевая мысль книги...")
+            if st.button("📚 Сохранить книгу в мою базу", use_container_width=True):
+                if nb_title.strip():
+                    conn = DatabaseManager.get_conn()
+                    c = conn.cursor()
+                    c.execute(
+                        "INSERT INTO book_notes (user_id, book_title, category, status, insight, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (uid, nb_title.strip(), nb_cat, nb_status, nb_insight.strip(), str(date.today()))
+                    )
+                    conn.commit()
+                    conn.close()
+                    st.success("✅ Книга и инсайт сохранены!")
+                    st.rerun()
+
+        selected_lib_cat = st.radio("Выбери блок литературы:", list(merged_library.keys()), horizontal=True)
+        books_in_cat = merged_library.get(selected_lib_cat, [])
+
+        # Добавляем кастомные книги пользователя для этой категории
+        for b_title, b_info in user_book_map.items():
+            if b_info["category"] == selected_lib_cat and b_title not in {x["title"] for x in books_in_cat}:
+                books_in_cat.append({
+                    "title": b_title,
+                    "author": "Личная полка",
+                    "status": b_info["status"],
+                    "desc": b_info["insight"] or "Добавлено пользователем"
+                })
+
+        bk_col1, bk_col2 = st.columns(2)
+        for idx, book in enumerate(books_in_cat):
+            target_bk_col = bk_col1 if idx % 2 == 0 else bk_col2
+            b_title = book["title"]
+            saved_state = user_book_map.get(b_title, {})
+            cur_status = saved_state.get("status", book.get("status", "В планах"))
+            cur_insight = saved_state.get("insight", "")
+
+            if "Прочитано" in cur_status:
+                badge_col = "#3fb950"
+            elif "процессе" in cur_status:
+                badge_col = "#58a6ff"
+            elif "Избранное" in cur_status:
+                badge_col = "#f1e05a"
+            else:
+                badge_col = "#8b949e"
+
+            with target_bk_col:
+                st.markdown(f"""
+                <div class="book-card">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                        <div>
+                            <h4 style="margin:0; font-size:17px;">📖 {b_title}</h4>
+                            <span style="font-size:13px; color:#58a6ff;">✍️ {book.get('author', '')}</span>
+                        </div>
+                        <span class="hud-pill" style="border-color:{badge_col}; color:{badge_col}; font-size:12px;">{cur_status}</span>
+                    </div>
+                    <p style="margin:10px 0 0 0; font-size:13px; color:#c9d1d9; line-height:1.5;">{book.get('desc', '')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                with st.expander(f"📝 Изменить статус / заметку: {b_title[:28]}..."):
+                    status_options = ["Прочитано", "В процессе", "В планах", "⭐ Избранное"]
+                    st_idx = status_options.index(cur_status) if cur_status in status_options else 2
+                    new_st = st.selectbox("Статус", status_options, index=st_idx, key=f"bk_st_{selected_lib_cat}_{idx}")
+                    new_ins = st.text_area("Мои выписки и мысли по книге:", value=cur_insight, key=f"bk_ins_{selected_lib_cat}_{idx}", height=70)
+                    if st.button("Сохранить", key=f"bk_btn_{selected_lib_cat}_{idx}", use_container_width=True):
+                        conn = DatabaseManager.get_conn()
+                        c = conn.cursor()
+                        c.execute("DELETE FROM book_notes WHERE user_id = ? AND book_title = ?", (uid, b_title))
+                        c.execute(
+                            "INSERT INTO book_notes (user_id, book_title, category, status, insight, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (uid, b_title, selected_lib_cat, new_st, new_ins.strip(), str(date.today()))
+                        )
+                        conn.commit()
+                        conn.close()
+                        st.success("Обновлено!")
+                        st.rerun()
+
+    # =================================================================
+    # ВКЛАДКА 5: 🎯 ЦЕЛИ (ПОЛНАЯ ВЕРСИЯ НА МЕСЯЦ И ГОД С УДАЛЕНИЕМ)
+    # =================================================================
     with tab_goals:
         st.markdown("#### 🎯 Глобальные Цели на Месяц и Год")
         with st.expander("➕ Добавить новую цель"):
             new_period = st.selectbox("Период", ["Месяц", "Год"])
             p_val = "month" if new_period == "Месяц" else "year"
-            new_title = st.text_input("Название цели", placeholder="Например: Сдать экзамен на 90+")
+            new_title = st.text_input("Название цели", placeholder="Например: Сдать экзамен на 90+ / Выжать 105 кг")
             new_target = st.number_input("Целевое значение", min_value=1.0, value=100.0, step=1.0)
             new_unit = st.text_input("Единица измерения", value="шт")
             
@@ -534,17 +1192,36 @@ elif st.session_state.page == "dashboard":
                             st.rerun()
                     st.divider()
 
-    # ВКЛАДКА 4: 🏆 36 ТРОФЕЕВ
+    # =================================================================
+    # ВКЛАДКА 6: 🏆 100 ТРОФЕЕВ (С ФИЛЬТРАЦИЕЙ ПО КАТЕГОРИЯМ И СТАТУСУ)
+    # =================================================================
     with tab_ach:
-        st.markdown("#### 🏆 Зал Славы: 36 Трофеев")
+        st.markdown("#### 🏆 Зал Славы: 100 Легендарных Трофеев")
         ach_catalog = CoreEngine.evaluate_and_sync_achievements(
             uid, df_logs, df_rpg, 3, False, 5.0, 7.5, 8, 75, 70, 100, 3, 5, 20, 1, ""
         )
         unlocked_count = sum(1 for a in ach_catalog if a["unlocked"])
-        st.progress(unlocked_count / len(ach_catalog), text=f"Открыто трофеев: {unlocked_count} из {len(ach_catalog)}")
+        st.progress(unlocked_count / max(1, len(ach_catalog)), text=f"Открыто трофеев: {unlocked_count} из {len(ach_catalog)}")
+
+        flt_c1, flt_c2 = st.columns(2)
+        all_cats = ["Все категории"] + sorted(list({a.get("category", "Разное") for a in ach_catalog}))
+        with flt_c1:
+            sel_cat = st.selectbox("Фильтр по категории:", all_cats)
+        with flt_c2:
+            sel_status = st.selectbox("Статус трофеев:", ["Все трофеи", "✅ Только открытые", "🔒 Только закрытые"])
+
+        filtered_ach = []
+        for a in ach_catalog:
+            if sel_cat != "Все категории" and a.get("category") != sel_cat:
+                continue
+            if sel_status == "✅ Только открытые" and not a["unlocked"]:
+                continue
+            if sel_status == "🔒 Только закрытые" and a["unlocked"]:
+                continue
+            filtered_ach.append(a)
 
         ac1, ac2 = st.columns(2)
-        for i, ach in enumerate(ach_catalog):
+        for i, ach in enumerate(filtered_ach):
             target_col = ac1 if i % 2 == 0 else ac2
             css_cls = "ach-card ach-unlocked" if ach["unlocked"] else "ach-card ach-locked"
             status_ico = f"✅ {ach['date']}" if ach["unlocked"] else "🔒 ЗАКРЫТО"
@@ -555,11 +1232,13 @@ elif st.session_state.page == "dashboard":
                         <span style="font-size:16px; font-weight:700;">{ach['icon']} {ach['title']}</span>
                         <span class="hud-pill">{status_ico}</span>
                     </div>
-                    <p style="margin:6px 0 0 0; font-size:12px; color:#8b949e;">{ach['desc']}</p>
+                    <p style="margin:6px 0 0 0; font-size:12px; color:#8b949e;">{ach.get('category', '')} • {ach['desc']}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
-    # ВКЛАДКА 5: 🧘 РЕЗЕТ
+    # =================================================================
+    # ВКЛАДКА 7: 🧘 РЕЗЕТ (ВСЕ 4 ТАЙМЕРА + POMODORO ГИПЕРФОКУСА)
+    # =================================================================
     with tab_sos:
         st.markdown("#### 🧘 Нейро-Резет: Восстановление и Антистресс")
         recovery_advice = CoreEngine.generate_recovery_advice(df_logs)
@@ -656,13 +1335,44 @@ elif st.session_state.page == "dashboard":
                     unsafe_allow_html=True
                 )
 
-    # ВКЛАДКА 6: 📄 ОТЧЕТ & ТОП
+    # =================================================================
+    # ВКЛАДКА 8: 📄 ОТЧЕТ, ЭКСПОРТ В ФАЙЛ & ЛИДЕРБОРД
+    # =================================================================
     with tab_rep:
         rep_c1, rep_c2 = st.columns([1.1, 1])
         with rep_c1:
-            st.markdown("#### 📄 Официальная сводка")
-            report_text = CoreEngine.generate_weekly_report(uname, is_pro, df_logs, df_rpg)
-            st.text_area("Предпросмотр:", value=report_text, height=220)
+            st.markdown("#### 📄 Официальная сводка & Экспорт")
+            base_report = CoreEngine.generate_weekly_report(uname, is_pro, df_logs, df_rpg)
+            extended_summary = (
+                f"\n\n2. RPG-ПРОГРЕСС И СВЕТОФОР СТРИКОВ:\n"
+                f"• Текущий уровень: LVL {player_lvl} ({cyber_title})\n"
+                f"• Накоплено опыта: {hist_xp} XP\n"
+                f"• Активный стрик: {streak_data['streak']} дн.\n"
+                f"• Статистика за 30 дн.: 🟢 {streak_data['green']} | 🟡 {streak_data['yellow']} | 🔴 {streak_data['red']}\n"
+                f"• Закрытие недели: {streak_data['week_pct']}% | Закрытие месяца: {streak_data['month_pct']}%\n"
+            )
+            full_report_text = base_report + extended_summary
+            st.text_area("Предпросмотр:", value=full_report_text, height=260)
+
+            dl_c1, dl_c2 = st.columns(2)
+            with dl_c1:
+                st.download_button(
+                    label="📥 Скачать отчет (.TXT)",
+                    data=full_report_text,
+                    file_name=f"NeuroGuard_Report_{uname}_{date.today()}.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                    type="primary"
+                )
+            with dl_c2:
+                st.download_button(
+                    label="📑 Скачать отчет (.MD)",
+                    data=f"# {full_report_text}",
+                    file_name=f"NeuroGuard_Report_{uname}_{date.today()}.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
+
         with rep_c2:
             st.markdown("#### 🏅 Глобальный Лидерборд")
             df_leader = DatabaseManager.get_leaderboard()
