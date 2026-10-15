@@ -42,13 +42,55 @@ class CoreEngine:
         return "🛡️ C-РАНГ", "#d29922"
 
     @staticmethod
+    def analyze_burnout_risk(df_health: pd.DataFrame, df_rpg: pd.DataFrame) -> dict:
+        """Анализатор риска выгорания (Пункт 3)"""
+        if df_health.empty or len(df_health) < 2:
+            return {"risk_level": "🟢 Низкий риск", "color": "#3fb950", "message": "Недостаточно данных для анализа. Продолжай в том же духе!"}
+
+        recent_sleep = df_health["sleep_hours"].head(3).mean()
+        recent_study = df_health["study_hours"].head(3).mean()
+        recent_strain = df_health["eye_strain"].head(3).mean()
+
+        risk_score = 0
+        if recent_sleep < 6.5:
+            risk_score += 45
+        elif recent_sleep < 7.5:
+            risk_score += 20
+
+        if recent_study > 8.0:
+            risk_score += 35
+        elif recent_study > 6.0:
+            risk_score += 15
+
+        if recent_strain > 6.0:
+            risk_score += 25
+
+        if risk_score >= 65:
+            return {
+                "risk_level": "🔴 ВЫСОКИЙ РИСК ВЫГОРАНИЯ",
+                "color": "#f85149",
+                "message": f"⚠️ Внимание! Средний сон упал до {recent_sleep:.1f}ч при экранном времени {recent_study:.1f}ч. Риск истощения ЦНС высок. Срочно добавь сон и выполни протокол резета!"
+            }
+        elif risk_score >= 35:
+            return {
+                "risk_level": "🟡 УМЕРЕННАЯ НАГРУЗКА",
+                "color": "#d29922",
+                "message": f"⚡ Организм работает на пределе. Следи за качеством сна ({recent_sleep:.1f}ч) и делай перерывы для глаз."
+            }
+        else:
+            return {
+                "risk_level": "🟢 БАЛАНС И ТОНУС",
+                "color": "#3fb950",
+                "message": "✅ Отличный баланс нагрузки и восстановления. Риск выгорания минимален."
+            }
+
+    @staticmethod
     def evaluate_and_sync_achievements(user_id: int, df_health: pd.DataFrame, df_rpg: pd.DataFrame,
                                        curr_eye: int, curr_impact: bool, curr_study: float,
                                        curr_sleep: float, curr_sleep_q: int, curr_readiness: int,
                                        curr_plan: int, curr_reps: int, curr_drills: int,
                                        curr_tasks: int, curr_pages: int, curr_topics: int,
                                        curr_note: str):
-        # Суммарные показатели из истории БД + текущий ввод
         total_health_days = len(df_health)
         safe_head_days = int((df_health["head_impact"] == 0).sum()) if not df_health.empty else 0
 
@@ -68,9 +110,7 @@ class CoreEngine:
         if curr_note.strip():
             notes_count += 1
 
-        # Карта условий для всех 36 трофеев
         triggers = {
-            # Категория 1: Био и Зрение
             "BIO_01": (curr_eye <= 4 and not curr_impact),
             "BIO_02": (curr_eye <= 2),
             "BIO_03": (curr_study <= 3.0),
@@ -80,8 +120,6 @@ class CoreEngine:
             "BIO_07": (safe_head_days >= 3),
             "BIO_08": (safe_head_days >= 7),
             "BIO_09": (total_health_days >= 14),
-
-            # Категория 2: Спорт и ОФП
             "SPT_01": (curr_reps >= 100),
             "SPT_02": (curr_reps >= 200),
             "SPT_03": (sum_reps >= 500),
@@ -91,8 +129,6 @@ class CoreEngine:
             "SPT_07": (curr_drills >= 10),
             "SPT_08": (sum_drills >= 25),
             "SPT_09": (sum_drills >= 50),
-
-            # Категория 3: Интеллект и Код
             "INT_01": (curr_tasks >= 5),
             "INT_02": (curr_tasks >= 10),
             "INT_03": (curr_tasks >= 20),
@@ -102,8 +138,6 @@ class CoreEngine:
             "INT_07": (curr_pages >= 50),
             "INT_08": (sum_pages >= 300),
             "INT_09": (sum_topics >= 15),
-
-            # Категория 4: Дисциплина и Ранги
             "DSC_01": (curr_plan >= 80),
             "DSC_02": (curr_plan == 100),
             "DSC_03": (perfect_plans >= 3),
@@ -146,29 +180,8 @@ class CoreEngine:
         if not df_health.empty:
             h7 = df_health.head(7)
             lines.append(f"• Записей проанализировано: {len(h7)} дн.")
-            lines.append(f"• Средняя продолжительность сна: {h7['sleep_hours'].mean():.1f} ч (качество: {h7['sleep_quality'].mean():.1f}/10)")
-            lines.append(f"• Среднее экранное время: {h7['study_hours'].mean():.1f} ч/день")
-            lines.append(f"• Индекс зрительного утомления: {h7['eye_strain'].mean():.1f} / 10")
+            lines.append(f"• Средняя продолжительность сна: {h7['sleep_hours'].mean():.1f} ч")
             lines.append(f"• Средний индекс готовности ЦНС: {h7['readiness_score'].mean():.0f}%")
-            impacts = int(h7['head_impact'].sum())
-            lines.append(f"• Эпизоды ударной нагрузки / натуживания: {impacts} дн.")
         else:
-            lines.append("• Нет сохраненных био-записей за период.")
-
-        lines.append("\n2. ДИСЦИПЛИНА И ПРОДУКТИВНОСТЬ (RPG-МОДУЛЬ):")
-        if not df_rpg.empty:
-            r7 = df_rpg.head(7)
-            total_xp = int(df_rpg['xp_earned'].sum())
-            lvl = (total_xp // 500) + 1
-            lines.append(f"• Текущий уровень игрока: LVL {lvl} ({total_xp} XP)")
-            lines.append(f"• Среднее выполнение дневного плана: {r7['plan_percent'].mean():.0f}%")
-            lines.append(f"• Выполнено упражнений (ОФП): {int(r7['exercises_reps'].sum())} повт.")
-            lines.append(f"• Отработано раундов техники / кобудо: {int(r7['agility_drills'].sum())}")
-            lines.append(f"• Решено задач (ЕГЭ / Код): {int(r7['tasks_solved'].sum())} шт.")
-            lines.append(f"• Прочитано страниц литературы: {int(r7['book_pages'].sum())} стр.")
-        else:
-            lines.append("• Нет сохраненных записей продуктивности за период.")
-
-        lines.append("\n==========================================")
-        lines.append("Сгенерировано системой NeuroGuard SaaS.")
+            lines.append("• Нет записей за период.")
         return "\n".join(lines)
