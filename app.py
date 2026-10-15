@@ -2,8 +2,6 @@ import sqlite3
 from datetime import date
 import pandas as pd
 import streamlit as st
-from google import genai
-from google.genai import types
 
 # --- 1. НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(
@@ -69,7 +67,7 @@ df_logs = load_logs()
 
 # --- 4. САЙДБАР И ТЁМНАЯ ТЕМА ---
 with st.sidebar:
-    st.header("🎨 Интерфейс и ИИ")
+    st.header("🎨 Интерфейс")
     dark_mode = st.toggle("🌙 Тёмная тема (Eye-Safe)", value=True)
     st.divider()
     st.markdown(
@@ -180,75 +178,34 @@ with col_result:
         st.markdown('<div class="status-box" style="background-color: rgba(248, 81, 73, 0.2); color: #f85149;">🔴 Перегрузка / Риск для глаз: нужен режим восстановления!</div>', unsafe_allow_html=True)
 
     if analyze_btn:
-        ai_advice = None
+        advice_parts = []
+        if eye_strain >= 6 or head_impact:
+            advice_parts.append("⚠️ **Зрение:** Высокий риск перегрузки сетчатки и аккомодации. Полностью исключи спарринги, резкие натуживания и сократи экранное время.")
+        else:
+            advice_parts.append("👀 **Зрение:** Нагрузка в пределах нормы, но при работе с кодом соблюдай правило 20-20-20 (каждые 20 минут смотри вдаль).")
         
-        # Проверяем, есть ли защищенный ключ в настройках Streamlit Cloud или локально в st.secrets
-        api_key = None
-        try:
-            if "GEMINI_API_KEY" in st.secrets:
-                api_key = st.secrets["GEMINI_API_KEY"]
-        except Exception:
-            pass
-
-        if api_key:
-            with st.spinner("Нейросеть анализирует показатели..."):
-                try:
-                    client = genai.Client(api_key=api_key)
-                    prompt = f"""
-                    Ты — спортивный врач-офтальмолог и эксперт по биохакингу.
-                    Проанализируй показатели старшеклассника (готовится к ЕГЭ, занимается каратэ, высокая дальнозоркость, риск для сетчатки):
-                    - Сон: {sleep_hours} ч (качество {sleep_quality}/10)
-                    - Работа за экраном / учеба: {study_hours} ч
-                    - Усталость/боль в глазах: {eye_strain}/10
-                    - Тренировка: {training_type} (интенсивность {training_intensity}/10)
-                    - Удары в голову / натуживание: {"Да" if head_impact else "Нет"}
-                    - Индекс готовности: {current_score}%
-
-                    Выдай краткий план действий на завтра в 3 пунктах:
-                    1. СПОРТ (что можно, что запрещено).
-                    2. УЧЕБА И ЭКРАНЫ (тайминги).
-                    3. ЗАЩИТА ЗРЕНИЯ И ВОССТАНОВЛЕНИЕ.
-                    Пиши четко, по делу, без воды.
-                    """
-                    response = client.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=prompt,
-                        config=types.GenerateContentConfig(temperature=0.3)
-                    )
-                    ai_advice = response.text
-                except Exception as e:
-                    ai_advice = None
-
-        # Если ключа нет или ИИ не ответил — включаем экспертную экспертную логику
-        if not ai_advice:
-            advice_parts = []
-            if eye_strain >= 6 or head_impact:
-                advice_parts.append("⚠️ **Зрение:** Высокий риск перегрузки сетчатки и аккомодации. Полностью исключи спарринги, резкие натуживания и сократи экранное время.")
-            else:
-                advice_parts.append("👀 **Зрение:** Нагрузка в пределах нормы, но при работе с кодом соблюдай правило 20-20-20 (каждые 20 минут смотри вдаль).")
-            
-            if current_score < 50:
-                advice_parts.append("🔋 **Режим:** ЦНС перегружена. Завтра только легкая разминка и сон минимум 8 часов.")
-            else:
-                advice_parts.append("💪 **Режим:** Хороший тонус. Можно продуктивно ботать и делать ОФП / технику в воздух без контакта в голову.")
-            ai_advice = "\n\n".join(advice_parts)
+        if current_score < 50:
+            advice_parts.append("🔋 **Режим:** ЦНС перегружена. Завтра только легкая разминка и сон минимум 8 часов.")
+        else:
+            advice_parts.append("💪 **Режим:** Хороший тонус. Можно продуктивно ботать и делать ОФП / технику в воздух без контакта в голову.")
+        
+        advice = "\n\n".join(advice_parts)
 
         save_log((
             str(log_date), sleep_hours, sleep_quality, study_hours,
             eye_strain, training_type, training_intensity,
-            int(head_impact), current_score, ai_advice
+            int(head_impact), current_score, advice
         ))
         df_logs = load_logs()
         st.success("Запись за день сохранена!")
         st.markdown("### 📋 Рекомендация")
-        st.info(ai_advice)
+        st.info(advice)
 
 # --- 6. ИСТОРИЯ, СТАТИСТИКА И ГРАФИКИ ---
 st.divider()
 st.subheader("📈 Динамика состояния и аналитика")
 
 if not df_logs.empty:
-    # Блок мини-статистики (метрики за все время в базе)
     m1, m2, m3 = st.columns(3)
     m1.metric("Средний сон", f"{df_logs['sleep_hours'].mean():.1f} ч")
     m2.metric("Средняя усталость глаз", f"{df_logs['eye_strain'].mean():.1f} / 10")
