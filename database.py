@@ -15,7 +15,7 @@ class DatabaseManager:
         conn = cls.get_conn()
         c = conn.cursor()
 
-        # 1. Таблица пользователей (SaaS / Auth / PRO)
+        # 1. Таблица пользователей
         c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +26,7 @@ class DatabaseManager:
             )
         """)
 
-        # 2. Таблица логов здоровья (привязка к user_id)
+        # 2. Таблица логов здоровья
         c.execute("""
             CREATE TABLE IF NOT EXISTS daily_health_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +46,7 @@ class DatabaseManager:
             )
         """)
 
-        # 3. Таблица RPG-прокачки и планов (привязка к user_id)
+        # 3. Таблица RPG-прокачки
         c.execute("""
             CREATE TABLE IF NOT EXISTS rpg_actions_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +72,7 @@ class DatabaseManager:
             )
         """)
 
-        # 4. Таблица разблокированных ачивок (привязка к user_id)
+        # 4. Таблица разблокированных ачивок
         c.execute("""
             CREATE TABLE IF NOT EXISTS achievements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +80,20 @@ class DatabaseManager:
                 ach_code TEXT NOT NULL,
                 unlocked_date TEXT NOT NULL,
                 UNIQUE(user_id, ach_code),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """)
+
+        # 5. НОВАЯ ТАБЛИЦА: Глобальные цели (Год / Месяц)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS user_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                goal_period TEXT NOT NULL, -- 'month' или 'year'
+                goal_title TEXT NOT NULL,
+                target_value REAL NOT NULL,
+                current_value REAL DEFAULT 0.0,
+                unit TEXT DEFAULT 'шт',
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         """)
@@ -220,3 +234,33 @@ class DatabaseManager:
         df = pd.read_sql_query(query, conn)
         conn.close()
         return df
+
+    @classmethod
+    def get_goals(cls, user_id: int) -> pd.DataFrame:
+        conn = cls.get_conn()
+        df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
+        conn.close()
+        if df.empty:
+            # Создаем дефолтные цели, если их нет
+            c = conn.cursor()
+            defaults = [
+                (user_id, 'month', 'Закрыть план на 100% дней', 30, 5, 'дн'),
+                (user_id, 'month', 'Решить задач по коду/ЕГЭ', 100, 22, 'задач'),
+                (user_id, 'year', 'Сделать суммарно повторений ОФП', 10000, 1450, 'повт'),
+                (user_id, 'year', 'Прочитать страниц литературы', 1500, 320, 'стр')
+            ]
+            c.executemany("INSERT INTO user_goals (user_id, goal_period, goal_title, target_value, current_value, unit) VALUES (?, ?, ?, ?, ?, ?)", defaults)
+            conn.commit()
+            conn.close()
+            conn = cls.get_conn()
+            df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
+            conn.close()
+        return df
+
+    @classmethod
+    def update_goal_progress(cls, goal_id: int, new_val: float):
+        conn = cls.get_conn()
+        c = conn.cursor()
+        c.execute("UPDATE user_goals SET current_value = ? WHERE id = ?", (new_val, goal_id))
+        conn.commit()
+        conn.close()
