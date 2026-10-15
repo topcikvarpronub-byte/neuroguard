@@ -1507,11 +1507,3 @@ elif st.session_state.page == "dashboard":
                         <p style="margin:2px 0 0 0; font-size:12px; color:#8b949e;">{sk_info['desc']}</p>
                     </div>
                 """, unsafe_allow_html=True)
-
-            st.markdown("#### 🏅 Таблица Лидеров")
-            df_leader = DatabaseManager.get_leaderboard()
-            if df_leader is not None and not df_leader.empty:
-                st.dataframe(df_leader, use_container_width=True, hide_index=True)
-                [data-testid="stExpander"] span, details summary span {
-    color: inherit !important;
-}
