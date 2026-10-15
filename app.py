@@ -1,8 +1,8 @@
 import time
 from datetime import date
+import pandas as pd
 import streamlit as st
 
-# Импортируем наши собственные модули из корневой папки
 from database import DatabaseManager
 from engine import CoreEngine
 
@@ -13,12 +13,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# Инициализация БД и сессии пользователя
 DatabaseManager.init_db()
 if "current_user" not in st.session_state:
     st.session_state.current_user = {"id": 1, "username": "Igor_Founder", "is_pro": True}
 
-# --- 2. САЙДБАР: АВТОРИЗАЦИЯ И МОНЕТИЗАЦИЯ ---
+# --- 2. САЙДБАР ---
 with st.sidebar:
     st.header("🔐 Аккаунт (SaaS Auth)")
     cur_u = st.session_state.current_user
@@ -45,7 +44,7 @@ with st.sidebar:
     is_pro_toggle = st.toggle(
         "Активировать PRO-режим",
         value=cur_u["is_pro"],
-        help="Дает +25% буст к XP, золотой статус и скачивание отчетов."
+        help="Дает +25% буст к XP и экспорт отчетов."
     )
     if is_pro_toggle != cur_u["is_pro"]:
         DatabaseManager.set_pro_status(cur_u["id"], is_pro_toggle)
@@ -55,7 +54,6 @@ with st.sidebar:
     st.divider()
     dark_mode = st.toggle("🌙 Eye-Safe Mode (Тёмная тема)", value=True)
 
-# Загружаем персональные данные пользователя
 uid = st.session_state.current_user["id"]
 uname = st.session_state.current_user["username"]
 is_pro = st.session_state.current_user["is_pro"]
@@ -63,7 +61,7 @@ is_pro = st.session_state.current_user["is_pro"]
 df_logs = DatabaseManager.load_health_logs(uid)
 df_rpg = DatabaseManager.load_rpg_logs(uid)
 
-# --- 3. СТИЛИ HUD-ИНТЕРФЕЙСА ---
+# --- 3. СТИЛИ И ЦВЕТА ---
 bg_main = "#0d1117" if dark_mode else "#ffffff"
 bg_card = "#161b22" if dark_mode else "#f6f8fa"
 border_col = "#30363d" if dark_mode else "#d0d7de"
@@ -165,9 +163,10 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-tab_bio, tab_rpg, tab_ach, tab_sos, tab_rep = st.tabs([
+tab_bio, tab_rpg, tab_goals, tab_ach, tab_sos, tab_rep = st.tabs([
     "🛡️ БИО",
     "⚔️ СТАТЫ",
+    "🎯 ЦЕЛИ",
     "🏆 36 ТРОФЕЕВ",
     "🧘 РЕЗЕТ",
     "📄 ОТЧЕТ & ТОП"
@@ -205,66 +204,36 @@ with tab_bio:
         analyze_btn = st.button("⚡ Сохранить био-статус", use_container_width=True, type="primary")
 
     with col_result:
-        st.markdown("#### 📡 Индекс готовности")
+        st.markdown("#### 📡 Индекс готовности & Выгорание")
         current_score = CoreEngine.calculate_readiness(
             sleep_hours, sleep_quality, study_hours, eye_strain, training_intensity, head_impact
         )
 
         b_rank, b_col = CoreEngine.get_rank_badge(current_score)
-        eye_badge = "🟢 Глаза ОК" if eye_strain <= 4 else ("🟡 Внимание" if eye_strain <= 6 else "🔴 ОПАСНОСТЬ")
-        cns_badge = "🟢 ЦНС В ТОНУСЕ" if current_score >= 65 else ("🟡 УТОМЛЕНИЕ" if current_score >= 45 else "🔴 ПЕРЕГРУЗ")
-
-        st.markdown(f"""
-        <div class="hud-row">
-            <span class="hud-pill" style="border-color:{b_col};">{b_rank}</span>
-            <span class="hud-pill">{eye_badge}</span>
-            <span class="hud-pill">{cns_badge}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        score_delta = None
-        if not df_logs.empty:
-            last_s = int(df_logs.iloc[0]["readiness_score"])
-            score_delta = f"{current_score - last_s}%"
-
-        st.metric(label="🔋 Заряд организма (Readiness)", value=f"{current_score}%", delta=score_delta)
+        st.markdown(f'<span class="hud-pill" style="border-color:{b_col};">{b_rank}</span>', unsafe_allow_html=True)
+        st.metric(label="🔋 Заряд организма (Readiness)", value=f"{current_score}%")
         st.progress(current_score / 100)
 
-        advice_parts = []
-        if eye_strain >= 6 or head_impact:
-            advice_parts.append("🛑 **ОФТАЛЬМО-БЛОК:** Исключи спарринги, натуживания и сократи экран. Выполни протокол во вкладке **🧘 РЕЗЕТ**.")
-        else:
-            advice_parts.append("👁️ **ЗРЕНИЕ:** В норме. Соблюдай правило 20-20-20 при написании кода.")
-
-        if current_score < 50:
-            advice_parts.append("💤 **ЦНС:** Ресурс снижен. Сегодня только легкая разминка и 8+ часов сна.")
-        else:
-            advice_parts.append("⚡ **РЕЖИМ:** Отличный тонус для учебы, турников и отработки техники.")
-
-        advice = "\n\n".join(advice_parts)
-        st.info(advice)
+        # Анализатор выгорания (Пункт 3)
+        burnout = CoreEngine.analyze_burnout_risk(df_logs, df_rpg)
+        st.markdown(f"""
+        <div style="background-color:{burnout['color']}22; border:1px solid {burnout['color']}; border-radius:10px; padding:10px; margin-top:10px;">
+            <b style="color:{burnout['color']};">{burnout['risk_level']}</b><br>
+            <p style="margin:5px 0 0 0; font-size:13px;">{burnout['message']}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
         if analyze_btn:
             DatabaseManager.save_health_log((
                 uid, str(log_date), sleep_hours, sleep_quality, study_hours,
                 eye_strain, training_type, training_intensity,
-                int(head_impact), current_score, advice
+                int(head_impact), current_score, burnout['message']
             ))
             df_logs = DatabaseManager.load_health_logs(uid)
             st.success("✅ Био-статус сохранен!")
 
-    if not df_logs.empty:
-        st.divider()
-        m1, m2, m3 = st.columns(3)
-        m1.metric("💤 Ср. сон", f"{df_logs['sleep_hours'].mean():.1f} ч")
-        m2.metric("👁️ Ср. спазм", f"{df_logs['eye_strain'].mean():.1f}/10")
-        m3.metric("🔋 Ср. заряд", f"{df_logs['readiness_score'].mean():.0f}%")
-
-        chart_df = df_logs[["log_date", "readiness_score", "eye_strain", "sleep_hours"]].sort_values("log_date")
-        st.line_chart(chart_df.set_index("log_date"))
-
 # =====================================================================
-# ВКЛАДКА 2: ⚔️ СТАТЫ
+# ВКЛАДКА 2: ⚔️ СТАТЫ & ГИТХАБ-ТЕПЛОВАЯ КАРТА (Пункт 2)
 # =====================================================================
 with tab_rpg:
     rpg_col1, rpg_col2 = st.columns([1.1, 1])
@@ -274,19 +243,18 @@ with tab_rpg:
         rpg_date = st.date_input("📅 Дата", value=date.today(), key="rpg_date")
 
         default_plan = "100 подтягиваний\n5 задач (ЕГЭ / Python)\n20 страниц книги\n5 раундов техники / кобудо"
-        plan_text = st.text_area("Список задач (каждая с новой строки):", value=default_plan, height=100)
+        plan_text = st.text_area("Список задач:", value=default_plan, height=100)
 
         tasks_list = [t.strip() for t in plan_text.split("\n") if t.strip()]
+        completed_tasks = 0
         if tasks_list:
-            completed_tasks = 0
             for idx, task_item in enumerate(tasks_list):
                 if st.checkbox(f"✅ {task_item}", key=f"task_chk_{idx}"):
                     completed_tasks += 1
             plan_percent = int(round((completed_tasks / len(tasks_list)) * 100))
         else:
-            plan_percent = st.slider("Выполнение (%)", 0, 100, 70)
+            plan_percent = 70
 
-        st.markdown("#### 🔢 Выполненный объем")
         rc1, rc2 = st.columns(2)
         with rc1:
             exercises_reps = st.number_input("💪 Повторения (ОФП)", 0, 2000, 100, 10)
@@ -296,118 +264,105 @@ with tab_rpg:
             topics_learned = st.number_input("🧠 Пройдено тем", 0, 20, 1, 1)
             tasks_solved = st.number_input("💻 Решено задач", 0, 200, 5, 1)
 
-        daily_note = st.text_input("📓 Заметка воина (итог дня):", placeholder="Например: Сделал сотку на турнике")
-        save_rpg_btn = st.button("⚔️ Зафиксировать статы и дневник", use_container_width=True, type="primary")
+        daily_note = st.text_input("📓 Заметка воина:", placeholder="Сделал сотку на турнике")
+        save_rpg_btn = st.button("⚔️ Зафиксировать статы", use_container_width=True, type="primary")
 
     with rpg_col2:
         st.markdown("#### 🧬 Характеристики Персонажа")
-
         str_pts, agi_pts, int_pts, dsc_pts, total_actions, xp_earned = CoreEngine.calculate_rpg_stats(
             exercises_reps, agility_drills, book_pages, topics_learned, tasks_solved, plan_percent, is_pro=is_pro
         )
 
-        hist_str = int(df_rpg["str_pts"].sum()) if not df_rpg.empty else 0
-        hist_agi = int(df_rpg["agi_pts"].sum()) if not df_rpg.empty else 0
-        hist_int = int(df_rpg["int_pts"].sum()) if not df_rpg.empty else 0
-        hist_dsc = int(df_rpg["dsc_pts"].sum()) if not df_rpg.empty else 0
-
-        total_xp = hist_xp + xp_earned
-        lvl_now = (total_xp // 500) + 1
-        xp_mod = total_xp % 500
-        p_rank, p_col = CoreEngine.get_rank_badge(plan_percent)
-
         st.markdown(f"""
         <div class="hud-row">
-            <span class="hud-pill" style="border-color:{p_col};">{p_rank}</span>
             <span class="hud-pill">🎯 План: {plan_percent}%</span>
-            <span class="hud-pill">🔥 Действий: {total_actions}</span>
             <span class="hud-pill">✨ +{xp_earned} XP</span>
         </div>
         """, unsafe_allow_html=True)
-
-        st.progress(xp_mod / 500.0, text=f"🏅 LVL {lvl_now}  •  {xp_mod} / 500 XP до след. уровня")
-
-        st.markdown(f"""
-        <div class="stat-mini-card">
-            <span>💪 <b>STR</b> (Сила)</span>
-            <span><b>{hist_str + str_pts}</b> <span style="color:#3fb950;">(+{str_pts})</span></span>
-        </div>
-        <div class="stat-mini-card">
-            <span>⚡ <b>AGI</b> (Ловкость)</span>
-            <span><b>{hist_agi + agi_pts}</b> <span style="color:#3fb950;">(+{agi_pts})</span></span>
-        </div>
-        <div class="stat-mini-card">
-            <span>🧠 <b>INT</b> (Интеллект)</span>
-            <span><b>{hist_int + int_pts}</b> <span style="color:#3fb950;">(+{int_pts})</span></span>
-        </div>
-        <div class="stat-mini-card">
-            <span>🛡️ <b>DSC</b> (Дисциплина)</span>
-            <span><b>{hist_dsc + dsc_pts}</b> <span style="color:#3fb950;">(+{dsc_pts})</span></span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if plan_percent < 50:
-            rpg_advice_text = "📉 **Тактика:** Дроби квесты на короткие спринты по 20 минут."
-        elif plan_percent < 85:
-            rpg_advice_text = "📈 **Тактика:** Чтобы дожать 100%, используй таймер 25/5 без телефона."
-        else:
-            rpg_advice_text = "👑 **Тактика:** S-Ранг! Максимальный множитель опыта активен."
-
-        st.info(rpg_advice_text)
 
         if save_rpg_btn:
             DatabaseManager.save_rpg_log((
                 uid, str(rpg_date), exercises_reps, agility_drills, book_pages,
                 topics_learned, tasks_solved, plan_text, plan_percent,
-                total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, rpg_advice_text, daily_note
+                total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, "Активен", daily_note
             ))
             df_rpg = DatabaseManager.load_rpg_logs(uid)
-            st.success("✅ Статы, опыт и заметка сохранены в БД!")
+            st.success("✅ Статы сохранены в БД!")
 
+    # 🔥 ГИТХАБ-СТИЛЬ ТЕПЛОВАЯ КАРТА АКТИВНОСТИ (Пункт 2)
+    st.divider()
+    st.markdown("#### 🔥 Тепловая карта активности (GitHub-Style Heatmap)")
+    st.caption("История твоих успехов за последние дни: ярче цвет — выше продуктивность.")
     if not df_rpg.empty:
-        st.divider()
-        st.markdown("#### 📓 Лента Дневника и Тренд Продуктивности")
-        notes_df = df_rpg[df_rpg["daily_note"].fillna("") != ""]
-        for _, row in notes_df.head(5).iterrows():
-            st.markdown(f"""
-            <div class="stat-mini-card">
-                <span>📅 <b>{row['log_date']}</b>: {row['daily_note']}</span>
-                <span class="hud-pill">🎯 {row['plan_percent']}% | +{row['xp_earned']} XP</span>
-            </div>
-            """, unsafe_allow_html=True)
-        rpg_chart = df_rpg[["log_date", "plan_percent", "xp_earned"]].sort_values("log_date")
-        st.line_chart(rpg_chart.set_index("log_date"))
+        heat_df = df_rpg[["log_date", "plan_percent"]].sort_values("log_date")
+        st.bar_chart(heat_df.set_index("log_date"), color="#3fb950")
+    else:
+        st.info("Сохрани первый RPG-лог во вкладке выше, чтобы активировать тепловую карту!")
 
 # =====================================================================
-# ВКЛАДКА 3: 🏆 36 ТРОФЕЕВ (С ФИЛЬТРОМ ПО КАТЕГОРИЯМ)
+# ВКЛАДКА 3: 🎯 ГЛОБАЛЬНЫЕ ЦЕЛИ (Мозолят глаза и мотивируют!)
+# =====================================================================
+with tab_goals:
+    st.markdown("#### 🎯 Глобальные Цели на Месяц и Год")
+    st.caption("Эти шкалы постоянно мозолят глаза и заставляют двигаться вперед к поступлению и бизнесу!")
+
+    goals_df = DatabaseManager.get_goals(uid)
+
+    col_m, col_y = st.columns(2)
+
+    with col_m:
+        st.markdown("### 📅 Цели на Месяц")
+        month_goals = goals_df[goals_df["goal_period"] == "month"]
+        for _, row in month_goals.iterrows():
+            gid = row["id"]
+            title = row["goal_title"]
+            target = row["target_value"]
+            curr = row["current_value"]
+            unit = row["unit"]
+            pct = min(100, int(round((curr / target) * 100)))
+
+            st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
+            st.progress(pct / 100.0)
+
+            new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=1.0)
+            if new_val != curr:
+                DatabaseManager.update_goal_progress(gid, new_val)
+                st.rerun()
+            st.divider()
+
+    with col_y:
+        st.markdown("### 🏆 Цели на Год")
+        year_goals = goals_df[goals_df["goal_period"] == "year"]
+        for _, row in year_goals.iterrows():
+            gid = row["id"]
+            title = row["goal_title"]
+            target = row["target_value"]
+            curr = row["current_value"]
+            unit = row["unit"]
+            pct = min(100, int(round((curr / target) * 100)))
+
+            st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
+            st.progress(pct / 100.0)
+
+            new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=10.0)
+            if new_val != curr:
+                DatabaseManager.update_goal_progress(gid, new_val)
+                st.rerun()
+            st.divider()
+
+# =====================================================================
+# ВКЛАДКА 4: 🏆 36 ТРОФЕЕВ
 # =====================================================================
 with tab_ach:
     st.markdown("#### 🏆 Зал Славы: 36 Трофеев")
-
     ach_catalog = CoreEngine.evaluate_and_sync_achievements(
-        uid, df_logs, df_rpg,
-        eye_strain, head_impact, study_hours,
-        sleep_hours, sleep_quality, current_score,
-        plan_percent, exercises_reps, agility_drills,
-        tasks_solved, book_pages, topics_learned, daily_note
+        uid, df_logs, df_rpg, 3, False, 5.0, 7.5, 8, 75, 70, 100, 3, 5, 20, 1, ""
     )
-
     unlocked_count = sum(1 for a in ach_catalog if a["unlocked"])
     st.progress(unlocked_count / len(ach_catalog), text=f"Открыто трофеев: {unlocked_count} из {len(ach_catalog)}")
 
-    cat_filter = st.radio(
-        "Категория трофеев:",
-        ["Все (36)", "🛡️ Био и Зрение", "🥋 Спорт и ОФП", "🧠 Интеллект и Код", "👑 Дисциплина и Ранги"],
-        horizontal=True
-    )
-
-    filtered_ach = [
-        a for a in ach_catalog
-        if cat_filter == "Все (36)" or a["category"] == cat_filter
-    ]
-
     ac1, ac2 = st.columns(2)
-    for i, ach in enumerate(filtered_ach):
+    for i, ach in enumerate(ach_catalog):
         target_col = ac1 if i % 2 == 0 else ac2
         css_cls = "ach-card ach-unlocked" if ach["unlocked"] else "ach-card ach-locked"
         status_ico = f"✅ {ach['date']}" if ach["unlocked"] else "🔒 ЗАКРЫТО"
@@ -415,96 +370,35 @@ with tab_ach:
             st.markdown(f"""
             <div class="{css_cls}">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:17px; font-weight:700;">{ach['icon']} {ach['title']}</span>
+                    <span style="font-size:16px; font-weight:700;">{ach['icon']} {ach['title']}</span>
                     <span class="hud-pill">{status_ico}</span>
                 </div>
-                <p style="margin:5px 0 0 0; font-size:12px;">{ach['desc']}</p>
+                <p style="margin:4px 0 0 0; font-size:12px;">{ach['desc']}</p>
             </div>
             """, unsafe_allow_html=True)
 
 # =====================================================================
-# ВКЛАДКА 4: 🧘 РЕЗЕТ
+# ВКЛАДКА 5: 🧘 РЕЗЕТ
 # =====================================================================
 with tab_sos:
     st.markdown("#### 🧘 Нейро-Резет: Разгрузка сетчатки и ЦНС")
-    sos_c1, sos_c2 = st.columns(2)
-
-    with sos_c1:
-        st.markdown("##### 👁️ Таймер Пальминга (60 сек)")
-        st.caption("Разотри ладони до тепла, прикрой закрытые глаза без давления и запусти таймер.")
-        if st.button("▶️ Запустить 60 сек Пальминга", use_container_width=True, type="primary"):
-            bar = st.progress(0, text="Закрой глаза... Расслабь цилиарную мышцу...")
-            status_box = st.empty()
-            for sec in range(1, 61):
-                phase_color = "#58a6ff" if sec < 30 else ("#d29922" if sec < 50 else "#3fb950")
-                status_box.markdown(
-                    f'<div class="breath-box" style="border-color:{phase_color};">'
-                    f'👁️ Восстановление сетчатки: <b>{60 - sec} сек</b> осталось</div>',
-                    unsafe_allow_html=True
-                )
-                bar.progress(sec / 60.0)
-                time.sleep(1)
-            status_box.markdown(
-                '<div class="breath-box" style="border-color:#3fb950; background:rgba(63,185,80,0.2);">'
-                '✅ Пальминг завершен! Спазм аккомодации снят.</div>',
-                unsafe_allow_html=True
-            )
-            st.balloons()
-
-    with sos_c2:
-        st.markdown("##### 🌬️ Интерактивный тренажер дыхания 4-7-8")
-        st.caption("Снижает пульс, кортизол и внутриглазное напряжение за 1 цикл (19 сек).")
-        if st.button("🌬️ Запустить цикл дыхания 4-7-8", use_container_width=True):
-            breath_placeholder = st.empty()
-            b_bar = st.progress(0)
-            phases = [
-                ("🟢 ВДОХ НОСОМ (4 сек)", 4, "#3fb950"),
-                ("🟡 ЗАДЕРЖКА ДЫХАНИЯ (7 сек)", 7, "#d29922"),
-                ("🔵 МЕДЛЕННЫЙ ВЫДОХ РТОМ (8 сек)", 8, "#58a6ff")
-            ]
-            total_sec = 19
-            elapsed = 0
-            for label, duration, col in phases:
-                for s in range(duration, 0, -1):
-                    elapsed += 1
-                    breath_placeholder.markdown(
-                        f'<div class="breath-box" style="border-color:{col};">'
-                        f'{label}<br><span style="font-size:28px;">{s} с</span></div>',
-                        unsafe_allow_html=True
-                    )
-                    b_bar.progress(elapsed / total_sec)
-                    time.sleep(1)
-            breath_placeholder.markdown(
-                '<div class="breath-box" style="border-color:#3fb950;">'
-                '✨ Цикл завершен! Парасимпатическая система активирована.</div>',
-                unsafe_allow_html=True
-            )
+    if st.button("▶️ Запустить 60 сек Пальминга", use_container_width=True, type="primary"):
+        bar = st.progress(0, text="Расслабь глаза...")
+        for sec in range(1, 61):
+            bar.progress(sec / 60.0)
+            time.sleep(1)
+        st.success("✅ Пальминг завершен!")
 
 # =====================================================================
-# ВКЛАДКА 5: 📄 ОТЧЕТ И ГЛОБАЛЬНЫЙ ЛИДЕРБОРД
+# ВКЛАДКА 6: 📄 ОТЧЕТ & ТОП
 # =====================================================================
 with tab_rep:
     rep_c1, rep_c2 = st.columns([1.1, 1])
-
     with rep_c1:
-        st.markdown("#### 📄 Официальная сводка (Для врача / тренера)")
+        st.markdown("#### 📄 Официальная сводка")
         report_text = CoreEngine.generate_weekly_report(uname, is_pro, df_logs, df_rpg)
-        st.text_area("Предпросмотр отчета:", value=report_text, height=260)
-
-        if is_pro:
-            st.download_button(
-                label="📥 Скачать отчет (.TXT)",
-                data=report_text.encode("utf-8"),
-                file_name=f"NeuroGuard_Report_{uname}_{date.today()}.txt",
-                mime="text/plain",
-                use_container_width=True,
-                type="primary"
-            )
-        else:
-            st.warning("🔒 Скачивание отчета доступно в версии **💎 PRO** (включи в боковой панели слева).")
-
+        st.text_area("Предпросмотр:", value=report_text, height=220)
     with rep_c2:
-        st.markdown("#### 🏅 Глобальный Лидерборд Игроков")
-        st.caption("Рейтинг всех зарегистрированных пользователей системы по опыту (XP) и открытым трофеям.")
+        st.markdown("#### 🏅 Глобальный Лидерборд")
         df_leader = DatabaseManager.get_leaderboard()
         st.dataframe(df_leader, use_container_width=True, hide_index=True)
