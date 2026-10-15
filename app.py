@@ -1122,12 +1122,10 @@ elif st.session_state.page == "dashboard":
                 for idx_s, st_text in enumerate(steps, 1):
                     st.markdown(f"**{idx_s}.** {st_text}")
                 st.markdown('</div>', unsafe_allow_html=True)
-
             with tr_c2:
                 st.markdown("##### ⏱️ Спортивные таймеры")
                 tm_display = st.empty()
-                tm_bar = st.progress(0)
-
+                tm_bar = st.progress()
                 tc_1, tc_2, tc_3 = st.columns(3)
                 with tc_1:
                     if st.button("🔥 Табата 20/10", use_container_width=True, type="primary"):
