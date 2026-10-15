@@ -110,18 +110,16 @@ st.markdown(f"""
         box-shadow: 0 0 30px rgba(88, 166, 255, 0.15);
         backdrop-filter: blur(10px);
     }}
-    .landing-hero {{
-        text-align: center;
-        padding: 40px 20px 20px 20px;
-    }}
-    .section-box {{
-        background: rgba(19, 28, 46, 0.6);
-        backdrop-filter: blur(14px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+    .hero-banner {{
+        background: linear-gradient(135deg, rgba(11,15,25,0.85), rgba(19,28,46,0.9)), url('hero.jpg');
+        background-size: cover;
+        background-position: center;
         border-radius: 20px;
-        padding: 30px;
-        margin: 30px 0;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        padding: 50px 30px;
+        text-align: center;
+        border: 1px solid rgba(88, 166, 255, 0.2);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+        margin-bottom: 25px;
     }}
     .system-footer {{
         text-align: center;
@@ -136,82 +134,70 @@ st.markdown(f"""
 
 
 # =====================================================================
-# ЭКРАН 1: 🌟 ДЛИННЫЙ ЛЕНДИНГ С КАРТИНКАМИ
+# ЭКРАН 1: 🌟 СОВРЕМЕННЫЙ SAAS-ЛЕНДИНГ С ФОНОВЫМИ КАРТИНКАМИ И ПЛАШКАМИ
 # =====================================================================
 if st.session_state.page == "landing":
     st.markdown("""
-        <div class="landing-hero">
+        <div class="hero-banner">
             <span class="hud-pill pro-pill" style="margin-bottom: 15px;">🚀 v2.5 Enterprise Edition</span>
-            <h1 style="font-size: 46px; font-weight: 800; letter-spacing: -1px; margin-bottom: 15px; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD SaaS</h1>
-            <p style="font-size: 18px; color: #8b949e; max-width: 650px; margin: 0 auto;">Интеллектуальная экосистема для глубокой продуктивности, биохакинга ЦНС и геймификации твоего потенциала.</p>
+            <h1 style="font-size: 44px; font-weight: 800; margin-bottom: 15px; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD SaaS</h1>
+            <p style="font-size: 18px; color: #c9d1d9; max-width: 600px; margin: 0 auto 25px auto;">Гиперинтеллектуальная экосистема для глубокой продуктивности, биохакинга ЦНС и геймификации твоего потенциала.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Картинка 1: Hero
-    try:
-        st.image("hero.jpg", use_container_width=True)
-    except:
-        st.info("💡 Загрузите hero.jpg в корень репозитория")
-
-    st.markdown("<br>", unsafe_allow_html=True)
     c_btn1, c_btn2, c_btn3 = st.columns([1, 1.2, 1])
     with c_btn2:
         if st.button("⚡ Войти в систему / Начать", use_container_width=True, type="primary"):
             st.session_state.page = "auth"
             st.rerun()
 
-    # Секция 2: Био-мониторинг
-    st.markdown("""
-        <div class="section-box">
-            <h2>🛡️ 1. Био-Мониторинг и Защита ЦНС</h2>
-            <p style="color: #8b949e; font-size: 15px;">Интеллектуальный анализ сна, экранного времени и спазма глаз. Предиктивный алгоритм вычисляет уровень усталости и защищает от эмоционального выгорания в реальном времени.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("bio.jpg", use_container_width=True)
-    except:
-        pass
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # Секция 3: RPG и тепловая карта
-    st.markdown("""
-        <div class="section-box">
-            <h2>⚔️ 2. RPG-Прокачка и GitHub Heatmap</h2>
-            <p style="color: #8b949e; font-size: 15px;">Преврати рутину в увлекательную игру. Накапливай опыт (XP), повышай уровень персонажа, выполняй ежедневные квесты и отслеживай продуктивность по яркой тепловой карте.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("rpg.jpg", use_container_width=True)
-    except:
-        pass
+    def render_saas_section(title, desc, img_name):
+        st.markdown(f"""
+            <div style="
+                background: linear-gradient(180deg, rgba(13,17,23,0.85) 0%, rgba(22,27,34,0.95) 100%), url('{img_name}');
+                background-size: cover;
+                background-position: center;
+                border-radius: 18px;
+                padding: 35px;
+                margin: 30px 0;
+                border: 1px solid rgba(88, 166, 255, 0.25);
+                box-shadow: 0 10px 35px rgba(0,0,0,0.4);
+            ">
+                <h2 style="color: #58a6ff; margin-bottom: 10px;">{title}</h2>
+                <p style="color: #e6edf3; font-size: 16px; line-height: 1.5; max-width: 700px; margin: 0;">{desc}</p>
+            </div>
+        """, unsafe_allow_html=True)
 
-    # Секция 4: Зал славы
-    st.markdown("""
-        <div class="section-box">
-            <h2>🏆 3. Зал Славы и 36 Трофеев</h2>
-            <p style="color: #8b949e; font-size: 15px;">Коллекционируй уникальные достижения за выдающиеся успехи в учебе, олимпиадах, спорте (каратэ, кобудо, ОФП) и железную дисциплину.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("trophies.jpg", use_container_width=True)
-    except:
-        pass
+    render_saas_section(
+        "🛡️ 1. Био-Мониторинг и Защита ЦНС",
+        "Интеллектуальный анализ сна, экранного времени и спазма глаз. Предиктивный алгоритм вычисляет уровень усталости и защищает от эмоционального выгорания в реальном времени.",
+        "bio.jpg"
+    )
 
-    # Секция 5: Нейро-резет
-    st.markdown("""
-        <div class="section-box">
-            <h2>🧘 4. Нейро-Резет и Умный Советник</h2>
-            <p style="color: #8b949e; font-size: 15px;">Интерактивные таймеры пальминга, правила 20-20-20, дыхательные протоколы и персональный советник по восстановлению (растяжка, сауна, холодный душ).</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("reset.jpg", use_container_width=True)
-    except:
-        pass
+    render_saas_section(
+        "⚔️ 2. RPG-Прокачка и GitHub Heatmap",
+        "Преврати рутину в увлекательную игру. Накапливай опыт (XP), повышай уровень персонажа, выполняй ежедневные квесты и отслеживай продуктивность по яркой тепловой карте.",
+        "rpg.jpg"
+    )
+
+    render_saas_section(
+        "🏆 3. Зал Славы и 36 Трофеев",
+        "Коллекционируй уникальные достижения за выдающиеся успехи в учебе, олимпиадах, спорте (каратэ, кобудо, ОФП) и железную дисциплину.",
+        "trophies.jpg"
+    )
+
+    render_saas_section(
+        "🧘 4. Нейро-Резет и Умный Советник",
+        "Интерактивные таймеры пальминга, правила 20-20-20, дыхательные протоколы и персональный советник по восстановлению (растяжка, сауна, холодный душ).",
+        "reset.jpg"
+    )
 
     st.markdown("<br>", unsafe_allow_html=True)
     c_btn4, c_btn5, c_btn6 = st.columns([1, 1.2, 1])
     with c_btn5:
-        if st.button("🚀 Начать использовать", use_container_width=True, type="primary"):
+        if st.button("🚀 Начать использовать SaaS", use_container_width=True, type="primary"):
             st.session_state.page = "auth"
             st.rerun()
 
