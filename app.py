@@ -145,9 +145,9 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- 4. ВЕРХНИЙ HUD-БАР ---
-hist_xp = int(df_rpg["xp_earned"].sum()) if not df_rpg.empty else 0
+hist_xp = int(df_rpg["xp_earned"].sum()) if (df_rpg is not None and not df_rpg.empty and "xp_earned" in df_rpg.columns) else 0
 player_lvl = (hist_xp // 500) + 1
-last_readiness = int(df_logs.iloc[0]["readiness_score"]) if not df_logs.empty else 75
+last_readiness = int(df_logs.iloc[0]["readiness_score"]) if (df_logs is not None and not df_logs.empty and "readiness_score" in df_logs.columns) else 75
 rank_txt, rank_col = CoreEngine.get_rank_badge(last_readiness)
 tier_pill = '<span class="hud-pill pro-pill">💎 PRO x1.25 XP</span>' if is_pro else '<span class="hud-pill">🆓 FREE</span>'
 
@@ -214,7 +214,6 @@ with tab_bio:
         st.metric(label="🔋 Заряд организма (Readiness)", value=f"{current_score}%")
         st.progress(current_score / 100)
 
-        # Анализатор выгорания (Пункт 3)
         burnout = CoreEngine.analyze_burnout_risk(df_logs, df_rpg)
         st.markdown(f"""
         <div style="background-color:{burnout['color']}22; border:1px solid {burnout['color']}; border-radius:10px; padding:10px; margin-top:10px;">
@@ -229,11 +228,11 @@ with tab_bio:
                 eye_strain, training_type, training_intensity,
                 int(head_impact), current_score, burnout['message']
             ))
-            df_logs = DatabaseManager.load_health_logs(uid)
-            st.success("✅ Био-статус сохранен!")
+            st.success("✅ Био-статус сохранен! Перезагрузи страницу.")
+            st.rerun()
 
 # =====================================================================
-# ВКЛАДКА 2: ⚔️ СТАТЫ & ГИТХАБ-ТЕПЛОВАЯ КАРТА (Пункт 2)
+# ВКЛАДКА 2: ⚔️ СТАТЫ & ГИТХАБ-ТЕПЛОВАЯ КАРТА
 # =====================================================================
 with tab_rpg:
     rpg_col1, rpg_col2 = st.columns([1.1, 1])
@@ -286,69 +285,67 @@ with tab_rpg:
                 topics_learned, tasks_solved, plan_text, plan_percent,
                 total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, "Активен", daily_note
             ))
-            df_rpg = DatabaseManager.load_rpg_logs(uid)
             st.success("✅ Статы сохранены в БД!")
+            st.rerun()
 
-    # 🔥 ГИТХАБ-СТИЛЬ ТЕПЛОВАЯ КАРТА АКТИВНОСТИ (Пункт 2)
     st.divider()
     st.markdown("#### 🔥 Тепловая карта активности (GitHub-Style Heatmap)")
-    st.caption("История твоих успехов за последние дни: ярче цвет — выше продуктивность.")
-    if not df_rpg.empty:
+    if df_rpg is not None and not df_rpg.empty and "log_date" in df_rpg.columns and "plan_percent" in df_rpg.columns:
         heat_df = df_rpg[["log_date", "plan_percent"]].sort_values("log_date")
         st.bar_chart(heat_df.set_index("log_date"), color="#3fb950")
     else:
-        st.info("Сохрани первый RPG-лог во вкладке выше, чтобы активировать тепловую карту!")
+        st.info("Сохрани первый RPG-лог выше, чтобы активировать тепловую карту!")
 
 # =====================================================================
-# ВКЛАДКА 3: 🎯 ГЛОБАЛЬНЫЕ ЦЕЛИ (Мозолят глаза и мотивируют!)
+# ВКЛАДКА 3: 🎯 ГЛОБАЛЬНЫЕ ЦЕЛИ
 # =====================================================================
 with tab_goals:
     st.markdown("#### 🎯 Глобальные Цели на Месяц и Год")
-    st.caption("Эти шкалы постоянно мозолят глаза и заставляют двигаться вперед к поступлению и бизнесу!")
-
     goals_df = DatabaseManager.get_goals(uid)
 
     col_m, col_y = st.columns(2)
 
     with col_m:
         st.markdown("### 📅 Цели на Месяц")
-        month_goals = goals_df[goals_df["goal_period"] == "month"]
-        for _, row in month_goals.iterrows():
-            gid = row["id"]
-            title = row["goal_title"]
-            target = row["target_value"]
-            curr = row["current_value"]
-            unit = row["unit"]
-            pct = min(100, int(round((curr / target) * 100)))
+        if goals_df is not None and not goals_df.empty:
+            month_goals = goals_df[goals_df["goal_period"] == "month"]
+            for _, row in month_goals.iterrows():
+                gid = row["id"]
+                title = row["goal_title"]
+                target = row["target_value"]
+                curr = row["current_value"]
+                unit = row["unit"]
+                pct = min(100, int(round((curr / target) * 100)))
 
-            st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
-            st.progress(pct / 100.0)
+                st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
+                st.progress(pct / 100.0)
 
-            new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=1.0)
-            if new_val != curr:
-                DatabaseManager.update_goal_progress(gid, new_val)
-                st.rerun()
-            st.divider()
+                new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=1.0)
+                if new_val != curr:
+                    DatabaseManager.update_goal_progress(gid, new_val)
+                    st.rerun()
+                st.divider()
 
     with col_y:
         st.markdown("### 🏆 Цели на Год")
-        year_goals = goals_df[goals_df["goal_period"] == "year"]
-        for _, row in year_goals.iterrows():
-            gid = row["id"]
-            title = row["goal_title"]
-            target = row["target_value"]
-            curr = row["current_value"]
-            unit = row["unit"]
-            pct = min(100, int(round((curr / target) * 100)))
+        if goals_df is not None and not goals_df.empty:
+            year_goals = goals_df[goals_df["goal_period"] == "year"]
+            for _, row in year_goals.iterrows():
+                gid = row["id"]
+                title = row["goal_title"]
+                target = row["target_value"]
+                curr = row["current_value"]
+                unit = row["unit"]
+                pct = min(100, int(round((curr / target) * 100)))
 
-            st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
-            st.progress(pct / 100.0)
+                st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
+                st.progress(pct / 100.0)
 
-            new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=10.0)
-            if new_val != curr:
-                DatabaseManager.update_goal_progress(gid, new_val)
-                st.rerun()
-            st.divider()
+                new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=10.0)
+                if new_val != curr:
+                    DatabaseManager.update_goal_progress(gid, new_val)
+                    st.rerun()
+                st.divider()
 
 # =====================================================================
 # ВКЛАДКА 4: 🏆 36 ТРОФЕЕВ
@@ -401,4 +398,7 @@ with tab_rep:
     with rep_c2:
         st.markdown("#### 🏅 Глобальный Лидерборд")
         df_leader = DatabaseManager.get_leaderboard()
-        st.dataframe(df_leader, use_container_width=True, hide_index=True)
+        if df_leader is not None and not df_leader.empty:
+            st.dataframe(df_leader, use_container_width=True, hide_index=True)
+        else:
+            st.info("Пока нет участников в таблице лидеров.")
