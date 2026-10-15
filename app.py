@@ -1,3 +1,4 @@
+
 import time
 from datetime import date
 import pandas as pd
@@ -228,7 +229,7 @@ with tab_bio:
                 eye_strain, training_type, training_intensity,
                 int(head_impact), current_score, burnout['message']
             ))
-            st.success("✅ Био-статус сохранен! Перезагрузи страницу.")
+            st.success("✅ Био-статус сохранен!")
             st.rerun()
 
 # =====================================================================
@@ -297,19 +298,17 @@ with tab_rpg:
         st.info("Сохрани первый RPG-лог выше, чтобы активировать тепловую карту!")
 
 # =====================================================================
-# ВКЛАДКА 3: 🎯 ГЛОБАЛЬНЫЕ ЦЕЛИ (С возможностью добавления своих!)
+# ВКЛАДКА 3: 🎯 ЦЕЛИ (Добавление, обновление прогресса и удаление)
 # =====================================================================
 with tab_goals:
     st.markdown("#### 🎯 Глобальные Цели на Месяц и Год")
-    st.caption("Эти шкалы постоянно мозолят глаза и заставляют двигаться вперед!")
-
-    # Форма добавления новой цели
+    
     with st.expander("➕ Добавить новую цель"):
-        new_period = st.selectbox("Период цели", ["Месяц (month)", "Год (year)"], format_func=lambda x: "Месяц" if "month" in x else "Год")
-        p_val = "month" if "month" in new_period else "year"
-        new_title = st.text_input("Название цели", placeholder="Например: Сдать ЕГЭ по информатике на 90+")
+        new_period = st.selectbox("Период", ["Месяц", "Год"])
+        p_val = "month" if new_period == "Месяц" else "year"
+        new_title = st.text_input("Название цели", placeholder="Например: Сдать экзамен на 90+")
         new_target = st.number_input("Целевое значение", min_value=1.0, value=100.0, step=1.0)
-        new_unit = st.text_input("Единица измерения", value="балл")
+        new_unit = st.text_input("Единица измерения", value="шт")
         
         if st.button("🚀 Создать цель", use_container_width=True):
             if new_title.strip():
@@ -321,13 +320,12 @@ with tab_goals:
                 )
                 conn.commit()
                 conn.close()
-                st.success("✅ Новая цель успешно добавлена!")
+                st.success("✅ Новая цель добавлена!")
                 st.rerun()
             else:
                 st.warning("Введите название цели!")
 
     goals_df = DatabaseManager.get_goals(uid)
-
     col_m, col_y = st.columns(2)
 
     with col_m:
@@ -345,10 +343,21 @@ with tab_goals:
                 st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
                 st.progress(pct / 100.0)
 
-                new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=1.0)
-                if new_val != curr:
-                    DatabaseManager.update_goal_progress(gid, new_val)
-                    st.rerun()
+                col_upd, col_del = st.columns([3, 1])
+                with col_upd:
+                    new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=1.0, label_visibility="collapsed")
+                    if new_val != curr:
+                        DatabaseManager.update_goal_progress(gid, new_val)
+                        st.rerun()
+                with col_del:
+                    if st.button("🗑️", key=f"del_goal_{gid}", help="Удалить цель"):
+                        conn = DatabaseManager.get_conn()
+                        c = conn.cursor()
+                        c.execute("DELETE FROM user_goals WHERE id = ?", (gid,))
+                        conn.commit()
+                        conn.close()
+                        st.success("Цель удалена!")
+                        st.rerun()
                 st.divider()
 
     with col_y:
@@ -366,12 +375,22 @@ with tab_goals:
                 st.markdown(f"**{title}** ({curr} / {target} {unit}) — **{pct}%**")
                 st.progress(pct / 100.0)
 
-                new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=10.0)
-                if new_val != curr:
-                    DatabaseManager.update_goal_progress(gid, new_val)
-                    st.rerun()
+                col_upd, col_del = st.columns([3, 1])
+                with col_upd:
+                    new_val = st.number_input(f"Обновить: {title}", value=float(curr), key=f"goal_inp_{gid}", step=10.0, label_visibility="collapsed")
+                    if new_val != curr:
+                        DatabaseManager.update_goal_progress(gid, new_val)
+                        st.rerun()
+                with col_del:
+                    if st.button("🗑️", key=f"del_goal_{gid}", help="Удалить цель"):
+                        conn = DatabaseManager.get_conn()
+                        c = conn.cursor()
+                        c.execute("DELETE FROM user_goals WHERE id = ?", (gid,))
+                        conn.commit()
+                        conn.close()
+                        st.success("Цель удалена!")
+                        st.rerun()
                 st.divider()
-
 
 # =====================================================================
 # ВКЛАДКА 4: 🏆 36 ТРОФЕЕВ
