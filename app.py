@@ -13,7 +13,7 @@ st.set_page_config(
 
 
 # =====================================================================
-# МОДУЛЬ 1: DATABASE LAYER (Задачи 1.1 и 1.2 — Реляционная БД с User ID)
+# МОДУЛЬ 1: DATABASE LAYER (Реляционная БД с User ID)
 # =====================================================================
 class DatabaseManager:
     DB_NAME = "neuroguard_saas.db"
@@ -96,7 +96,7 @@ class DatabaseManager:
             )
         """)
 
-        # Создаем дефолтный аккаунт основателя, чтобы вход работал мгновенно
+        # Создаем дефолтный аккаунт основателя
         c.execute("SELECT id FROM users WHERE username = 'Igor_Founder'")
         if not c.fetchone():
             c.execute(
@@ -208,7 +208,7 @@ class DatabaseManager:
 
 
 # =====================================================================
-# МОДУЛЬ 2: CORE ENGINE (Задачи 2.1, 2.2, 2.3 — Математическое ядро)
+# МОДУЛЬ 2: CORE ENGINE (Математическое ядро)
 # =====================================================================
 class CoreEngine:
     @staticmethod
@@ -233,7 +233,7 @@ class CoreEngine:
         total_actions = ex_reps + agi_drills + pages + topics + tasks
         base_xp = (str_pts + agi_pts + int_pts) * 2
         plan_multiplier = 1.0 + (plan_pct / 200.0)
-        pro_multiplier = 1.25 if is_pro else 1.0  # PRO-подписка дает +25% буст к опыту
+        pro_multiplier = 1.25 if is_pro else 1.0
         xp_earned = int(round(base_xp * plan_multiplier * pro_multiplier))
         return str_pts, agi_pts, int_pts, dsc_pts, total_actions, xp_earned
 
@@ -252,7 +252,6 @@ class CoreEngine:
                                        curr_eye: int, curr_impact: bool, curr_plan: int,
                                        curr_reps: int, curr_drills: int, curr_tasks: int,
                                        curr_pages: int, curr_sleep: float, curr_sleep_q: int):
-        # Триггеры проверки условий
         triggers = {
             "CRYSTAL_EYE": (curr_eye <= 4 and not curr_impact) or (
                 not df_health.empty and ((df_health["eye_strain"] <= 4) & (df_health["head_impact"] == 0)).any()
@@ -316,10 +315,6 @@ class CoreEngine:
             lines.append(f"• Средний индекс готовности ЦНС (Readiness): {h7['readiness_score'].mean():.0f}%")
             impacts = int(h7['head_impact'].sum())
             lines.append(f"• Эпизоды ударной нагрузки / натуживания: {impacts} дн.")
-            if h7['eye_strain'].mean() >= 5.5 or impacts > 0:
-                lines.append("⚠️ РЕКОМЕНДАЦИЯ ВРАЧУ/ТРЕНЕРУ: Зафиксирована повышенная нагрузка на сетчатку. Показан бесконтактный режим тренировок и гигиена зрения 20-20-20.")
-            else:
-                lines.append("✅ СТАТУС ЗРЕНИЯ: Показатели спазма аккомодации в пределах безопасной нормы.")
         else:
             lines.append("• Нет сохраненных био-записей за период.")
 
@@ -349,7 +344,7 @@ if "current_user" not in st.session_state:
 
 
 # =====================================================================
-# МОДУЛЬ 3: САЙДБАР — АВТОРИЗАЦИЯ И MОНЕТИЗАЦИЯ (Задачи 4.1 и 4.2)
+# МОДУЛЬ 3: САЙДБАР — АВТОРИЗАЦИЯ И МОНЕТИЗАЦИЯ
 # =====================================================================
 with st.sidebar:
     st.header("🔐 Аккаунт (SaaS Auth)")
@@ -377,7 +372,7 @@ with st.sidebar:
     is_pro_toggle = st.toggle(
         "Активировать PRO-режим",
         value=cur_u["is_pro"],
-        help="Дает +25% буст к XP, золотой статус и разблокирует скачивание отчетов для врача/тренера."
+        help="Дает +25% буст к XP, золотой статус и разблокирует скачивание отчетов."
     )
     if is_pro_toggle != cur_u["is_pro"]:
         DatabaseManager.set_pro_status(cur_u["id"], is_pro_toggle)
@@ -394,7 +389,7 @@ with st.sidebar:
 
 # Загружаем персональные данные текущего пользователя из БД
 uid = st.session_state.current_user["id"]
- uname = st.session_state.current_user["username"]
+uname = st.session_state.current_user["username"]
 is_pro = st.session_state.current_user["is_pro"]
 
 df_logs = DatabaseManager.load_health_logs(uid)
@@ -402,7 +397,7 @@ df_rpg = DatabaseManager.load_rpg_logs(uid)
 
 
 # =====================================================================
-# МОДУЛЬ 4: MOBILE HUD CSS (Задача 3.1)
+# МОДУЛЬ 4: MOBILE HUD CSS И ИНТЕРФЕЙС
 # =====================================================================
 bg_main = "#0d1117" if dark_mode else "#ffffff"
 bg_card = "#161b22" if dark_mode else "#f6f8fa"
@@ -505,7 +500,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 5 компактных вкладок со значками
+# 5 вкладок интерфейса
 tab_bio, tab_rpg, tab_ach, tab_sos, tab_rep = st.tabs([
     "🛡️ БИО",
     "⚔️ СТАТЫ",
@@ -516,7 +511,7 @@ tab_bio, tab_rpg, tab_ach, tab_sos, tab_rep = st.tabs([
 
 
 # =====================================================================
-# ВКЛАДКА 1: 🛡️ БИО (ЗДОРОВЬЕ, СЕТЧАТКА И ЦНС)
+# ВКЛАДКА 1: 🛡️ БИО
 # =====================================================================
 with tab_bio:
     col_input, col_result = st.columns([1.1, 1])
@@ -576,7 +571,7 @@ with tab_bio:
         if eye_strain >= 6 or head_impact:
             advice_parts.append("🛑 **ОФТАЛЬМО-БЛОК:** Исключи спарринги, натуживания и сократи экран. Выполни протокол во вкладке **🧘 РЕЗЕТ**.")
         else:
-            advice_parts.append("👁️ **ЗРЕНИЕ:** В норме. Соблюдай правило 20-20-20 при написании кода и подготовке к ЕГЭ.")
+            advice_parts.append("👁️ **ЗРЕНИЕ:** В норме. Соблюдай правило 20-20-20 при написании кода.")
 
         if current_score < 50:
             advice_parts.append("💤 **ЦНС:** Ресурс снижен. Сегодня только легкая разминка и 8+ часов сна.")
@@ -607,7 +602,7 @@ with tab_bio:
 
 
 # =====================================================================
-# ВКЛАДКА 2: ⚔️ СТАТЫ (RPG-ПРОКАЧКА, ПЛАН И ДНЕВНИК ВОИНА)
+# ВКЛАДКА 2: ⚔️ СТАТЫ
 # =====================================================================
 with tab_rpg:
     rpg_col1, rpg_col2 = st.columns([1.1, 1])
@@ -639,7 +634,7 @@ with tab_rpg:
             topics_learned = st.number_input("🧠 Пройдено тем", 0, 20, 1, 1)
             tasks_solved = st.number_input("💻 Решено задач", 0, 200, 5, 1)
 
-        daily_note = st.text_input("📓 Заметка воина (итог дня):", placeholder="Например: Сделал сотку на турнике, разобрал 2 задачи")
+        daily_note = st.text_input("📓 Заметка воина (итог дня):", placeholder="Например: Сделал сотку на турнике")
         save_rpg_btn = st.button("⚔️ Зафиксировать статы и дневник", use_container_width=True, type="primary")
 
     with rpg_col2:
@@ -690,7 +685,7 @@ with tab_rpg:
         """, unsafe_allow_html=True)
 
         if plan_percent < 50:
-            rpg_advice_text = "📉 **Тактика:** Дроби квесты на короткие спринты по 20 минут. Закрывай главный квест до обеда."
+            rpg_advice_text = "📉 **Тактика:** Дроби квесты на короткие спринты по 20 минут."
         elif plan_percent < 85:
             rpg_advice_text = "📈 **Тактика:** Чтобы дожать 100%, используй таймер 25/5 без телефона."
         else:
@@ -723,11 +718,11 @@ with tab_rpg:
 
 
 # =====================================================================
-# ВКЛАДКА 3: 🏆 ТРОФЕИ (АВТО-СОХРАНЕНИЕ В ТАБЛИЦУ ACHIEVEMENTS — Задача 2.2)
+# ВКЛАДКА 3: 🏆 ТРОФЕИ
 # =====================================================================
 with tab_ach:
     st.markdown("#### 🏆 Зал Трофеев (База Достижений)")
-    st.caption("При выполнении условия трофей автоматически разблокируется и навсегда фиксируется в базе за твоим User ID.")
+    st.caption("При выполнении условия трофей автоматически разблокируется и фиксируется в базе за твоим ID.")
 
     ach_catalog = CoreEngine.evaluate_and_sync_achievements(
         uid, df_logs, df_rpg,
@@ -757,7 +752,7 @@ with tab_ach:
 
 
 # =====================================================================
-# ВКЛАДКА 4: 🧘 РЕЗЕТ (АНИМАЦИЯ ДЫХАНИЯ 4-7-8 + ТАЙМЕР — Задача 3.2)
+# ВКЛАДКА 4: 🧘 РЕЗЕТ
 # =====================================================================
 with tab_sos:
     st.markdown("#### 🧘 Нейро-Резет: Разгрузка сетчатки и ЦНС")
@@ -816,7 +811,7 @@ with tab_sos:
 
 
 # =====================================================================
-# ВКЛАДКА 5: 📄 ОТЧЕТ (ГЕНЕРАЦИЯ И ЭКСПОРТ СВОДКИ — Задача 2.3 и 4.2)
+# ВКЛАДКА 5: 📄 ОТЧЕТ
 # =====================================================================
 with tab_rep:
     st.markdown("#### 📄 Генератор отчета (Для врача-офтальмолога / тренера / защиты)")
