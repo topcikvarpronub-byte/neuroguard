@@ -43,9 +43,13 @@ class CoreEngine:
 
     @staticmethod
     def analyze_burnout_risk(df_health: pd.DataFrame, df_rpg: pd.DataFrame) -> dict:
-        """Анализатор риска выгорания (Пункт 3)"""
-        if df_health.empty or len(df_health) < 2:
-            return {"risk_level": "🟢 Низкий риск", "color": "#3fb950", "message": "Недостаточно данных для анализа. Продолжай в том же духе!"}
+        """Анализатор риска выгорания и перегрузки ЦНС"""
+        if df_health.empty or len(df_health) < 1:
+            return {
+                "risk_level": "🟢 БАЗОВЫЙ УРОВЕНЬ",
+                "color": "#3fb950",
+                "message": "Сохрани первый био-статус, чтобы запустить предиктивный анализ выгорания."
+            }
 
         recent_sleep = df_health["sleep_hours"].head(3).mean()
         recent_study = df_health["study_hours"].head(3).mean()
@@ -69,19 +73,19 @@ class CoreEngine:
             return {
                 "risk_level": "🔴 ВЫСОКИЙ РИСК ВЫГОРАНИЯ",
                 "color": "#f85149",
-                "message": f"⚠️ Внимание! Средний сон упал до {recent_sleep:.1f}ч при экранном времени {recent_study:.1f}ч. Риск истощения ЦНС высок. Срочно добавь сон и выполни протокол резета!"
+                "message": f"⚠️ Внимание! Средний сон упал до {recent_sleep:.1f}ч при экранном времени {recent_study:.1f}ч. Риск истощения высок. Срочно добавь сон и выполни протокол резета во вкладке 🧘 РЕЗЕТ!"
             }
         elif risk_score >= 35:
             return {
                 "risk_level": "🟡 УМЕРЕННАЯ НАГРУЗКА",
                 "color": "#d29922",
-                "message": f"⚡ Организм работает на пределе. Следи за качеством сна ({recent_sleep:.1f}ч) и делай перерывы для глаз."
+                "message": f"⚡ Организм под нагрузкой. Следи за качеством сна ({recent_sleep:.1f}ч) и делай перерывы для глаз по правилу 20-20-20."
             }
         else:
             return {
                 "risk_level": "🟢 БАЛАНС И ТОНУС",
                 "color": "#3fb950",
-                "message": "✅ Отличный баланс нагрузки и восстановления. Риск выгорания минимален."
+                "message": "✅ Отличный баланс работы и восстановления. Риск выгорания минимален, все показатели в норме."
             }
 
     @staticmethod
