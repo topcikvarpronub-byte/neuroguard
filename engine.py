@@ -44,11 +44,11 @@ class CoreEngine:
     @staticmethod
     def analyze_burnout_risk(df_health: pd.DataFrame, df_rpg: pd.DataFrame) -> dict:
         """Анализатор риска выгорания и перегрузки ЦНС"""
-        if df_health.empty or len(df_health) < 1:
+        if df_health is None or df_health.empty or len(df_health) < 1:
             return {
                 "risk_level": "🟢 БАЗОВЫЙ УРОВЕНЬ",
                 "color": "#3fb950",
-                "message": "Сохрани первый био-статус, чтобы запустить предиктивный анализ выгорания."
+                "message": "Сохрани первый био-статус во вкладке БИО, чтобы запустить предиктивный анализ выгорания."
             }
 
         recent_sleep = df_health["sleep_hours"].head(3).mean()
@@ -95,22 +95,22 @@ class CoreEngine:
                                        curr_plan: int, curr_reps: int, curr_drills: int,
                                        curr_tasks: int, curr_pages: int, curr_topics: int,
                                        curr_note: str):
-        total_health_days = len(df_health)
-        safe_head_days = int((df_health["head_impact"] == 0).sum()) if not df_health.empty else 0
+        total_health_days = len(df_health) if df_health is not None else 0
+        safe_head_days = int((df_health["head_impact"] == 0).sum()) if (df_health is not None and not df_health.empty) else 0
 
-        sum_reps = (int(df_rpg["exercises_reps"].sum()) if not df_rpg.empty else 0) + curr_reps
-        sum_drills = (int(df_rpg["agility_drills"].sum()) if not df_rpg.empty else 0) + curr_drills
-        sum_tasks = (int(df_rpg["tasks_solved"].sum()) if not df_rpg.empty else 0) + curr_tasks
-        sum_pages = (int(df_rpg["book_pages"].sum()) if not df_rpg.empty else 0) + curr_pages
-        sum_topics = (int(df_rpg["topics_learned"].sum()) if not df_rpg.empty else 0) + curr_topics
-        sum_xp = (int(df_rpg["xp_earned"].sum()) if not df_rpg.empty else 0)
+        sum_reps = (int(df_rpg["exercises_reps"].sum()) if (df_rpg is not None and not df_rpg.empty) else 0) + curr_reps
+        sum_drills = (int(df_rpg["agility_drills"].sum()) if (df_rpg is not None and not df_rpg.empty) else 0) + curr_drills
+        sum_tasks = (int(df_rpg["tasks_solved"].sum()) if (df_rpg is not None and not df_rpg.empty) else 0) + curr_tasks
+        sum_pages = (int(df_rpg["book_pages"].sum()) if (df_rpg is not None and not df_rpg.empty) else 0) + curr_pages
+        sum_topics = (int(df_rpg["topics_learned"].sum()) if (df_rpg is not None and not df_rpg.empty) else 0) + curr_topics
+        sum_xp = (int(df_rpg["xp_earned"].sum()) if (df_rpg is not None and not df_rpg.empty) else 0)
         lvl = (sum_xp // 500) + 1
 
-        perfect_plans = int((df_rpg["plan_percent"] == 100).sum()) if not df_rpg.empty else 0
+        perfect_plans = int((df_rpg["plan_percent"] == 100).sum()) if (df_rpg is not None and not df_rpg.empty) else 0
         if curr_plan == 100:
             perfect_plans += 1
 
-        notes_count = int((df_rpg["daily_note"].fillna("") != "").sum()) if not df_rpg.empty else 0
+        notes_count = int((df_rpg["daily_note"].fillna("") != "").sum()) if (df_rpg is not None and not df_rpg.empty) else 0
         if curr_note.strip():
             notes_count += 1
 
@@ -181,7 +181,7 @@ class CoreEngine:
             "==========================================\n",
             "1. МЕДИЦИНСКИЙ И БИО-ПРОФИЛЬ (ЗРЕНИЕ И ЦНС):"
         ]
-        if not df_health.empty:
+        if df_health is not None and not df_health.empty:
             h7 = df_health.head(7)
             lines.append(f"• Записей проанализировано: {len(h7)} дн.")
             lines.append(f"• Средняя продолжительность сна: {h7['sleep_hours'].mean():.1f} ч")
