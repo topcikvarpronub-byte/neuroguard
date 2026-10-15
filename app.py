@@ -21,23 +21,22 @@ if "page" not in st.session_state:
 if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
-# --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ ---
-bg_main = "#0b0f19"
-bg_card = "#131c2e"
+# --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ (MODERN SAAS BENTO STYLE) ---
+bg_main = "#07090e"
 border_col = "rgba(255, 255, 255, 0.08)"
 text_col = "#f0f6fc"
 
 st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
 
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
-        background: radial-gradient(circle at 50% 0%, #162238 0%, {bg_main} 70%) !important;
+        background: radial-gradient(circle at 50% -20%, #1a2b4c 0%, {bg_main} 60%) !important;
         color: {text_col} !important;
         font-family: 'Inter', sans-serif !important;
     }}
     [data-testid="stSidebar"] {{
-        background-color: #0e1626 !important;
+        background-color: #0b101b !important;
         border-right: 1px solid {border_col} !important;
     }}
     h1, h2, h3, h4, p, span, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {{
@@ -48,10 +47,10 @@ st.markdown(f"""
         font-family: 'JetBrains Mono', monospace !important;
     }}
     div[data-baseweb="select"] > div, input, textarea {{
-        background-color: #1a263f !important;
+        background-color: #131d31 !important;
         color: {text_col} !important;
-        border: 1px solid rgba(88, 166, 255, 0.2) !important;
-        border-radius: 10px !important;
+        border: 1px solid rgba(88, 166, 255, 0.25) !important;
+        border-radius: 12px !important;
     }}
     .hud-row {{
         display: flex;
@@ -60,77 +59,83 @@ st.markdown(f"""
         margin-bottom: 12px;
     }}
     .hud-pill {{
-        background: rgba(19, 28, 46, 0.8);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 20px;
-        padding: 6px 14px;
+        background: rgba(19, 29, 49, 0.85);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 30px;
+        padding: 6px 16px;
         font-size: 13px;
         font-weight: 700;
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }}
     .pro-pill {{
-        border: 1px solid #f1e05a !important;
-        background: linear-gradient(135deg, rgba(241,224,90,0.22), rgba(19,28,46,0.9)) !important;
+        border: 1px solid rgba(241,224,90,0.4) !important;
+        background: linear-gradient(135deg, rgba(241,224,90,0.2), rgba(19,29,49,0.95)) !important;
         color: #f1e05a !important;
     }}
     .ach-card {{
-        background: rgba(19, 28, 46, 0.7);
-        backdrop-filter: blur(10px);
-        border-radius: 14px;
-        padding: 14px;
+        background: rgba(19, 29, 49, 0.7);
+        backdrop-filter: blur(12px);
+        border-radius: 16px;
+        padding: 16px;
         margin-bottom: 12px;
         border: 1px solid {border_col};
         transition: all 0.3s ease;
     }}
     .ach-card:hover {{
-        border-color: rgba(88, 166, 255, 0.4);
+        border-color: rgba(88, 166, 255, 0.5);
         transform: translateY(-2px);
     }}
     .ach-unlocked {{
-        border: 1px solid rgba(63, 185, 80, 0.5) !important;
-        background: linear-gradient(135deg, rgba(63,185,80,0.18), rgba(19,28,46,0.85)) !important;
-        box-shadow: 0 0 20px rgba(63, 185, 80, 0.15);
+        border: 1px solid rgba(63, 185, 80, 0.6) !important;
+        background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(19,29,49,0.9)) !important;
+        box-shadow: 0 0 25px rgba(63, 185, 80, 0.2);
     }}
     .ach-locked {{
-        opacity: 0.38;
+        opacity: 0.35;
     }}
     .breath-box {{
-        border-radius: 16px;
+        border-radius: 18px;
         padding: 24px;
         text-align: center;
         font-size: 22px;
         font-weight: 700;
         margin: 12px 0;
         border: 2px solid #58a6ff;
-        background: rgba(88, 166, 255, 0.1);
-        box-shadow: 0 0 30px rgba(88, 166, 255, 0.15);
-        backdrop-filter: blur(10px);
-    }}
-    .saas-section-card {{
-        background: rgba(19, 28, 46, 0.75);
+        background: rgba(88, 166, 255, 0.12);
+        box-shadow: 0 0 35px rgba(88, 166, 255, 0.2);
         backdrop-filter: blur(12px);
-        border: 1px solid rgba(88, 166, 255, 0.2);
-        border-radius: 20px;
-        padding: 30px;
-        margin: 35px 0;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-        text-align: left;
     }}
-    .landing-container {{
-        max-width: 900px;
-        margin: 0 auto;
+    
+    /* СТИЛИ ДОРОГОГО SAAS-ЛЕНДИНГА */
+    .saas-hero {{
         text-align: center;
+        padding: 50px 20px 30px 20px;
+    }}
+    .bento-card {{
+        background: linear-gradient(180deg, rgba(16, 24, 40, 0.9) 0%, rgba(10, 15, 26, 0.95) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        padding: 30px;
+        margin-bottom: 24px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        transition: transform 0.3s ease, border-color 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }}
+    .bento-card:hover {{
+        border-color: rgba(88, 166, 255, 0.4);
+        transform: translateY(-4px);
     }}
     .system-footer {{
         text-align: center;
-        font-size: 12px;
+        font-size: 13px;
         color: #8b949e;
-        margin-top: 40px;
-        padding: 20px;
+        margin-top: 60px;
+        padding: 30px;
         border-top: 1px solid {border_col};
     }}
     </style>
@@ -138,79 +143,90 @@ st.markdown(f"""
 
 
 # =====================================================================
-# ЭКРАН 1: 🌟 ЛЕНДИНГ С КАРТИНКАМИ И КАРТОЧКАМИ
+# ЭКРАН 1: 🌟 УЛЬТРАСОВРЕМЕННЫЙ SAAS-ЛЕНДИНГ (BENTO GRID)
 # =====================================================================
 if st.session_state.page == "landing":
     st.markdown("""
-        <div class="landing-container">
-            <span class="hud-pill pro-pill" style="margin-bottom: 15px;">🚀 v2.5 Enterprise Edition</span>
-            <h1 style="font-size: 44px; font-weight: 800; margin-bottom: 15px; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD SaaS</h1>
-            <p style="font-size: 18px; color: #c9d1d9; margin-bottom: 25px;">Гиперинтеллектуальная экосистема для глубокой продуктивности, биохакинга ЦНС и геймификации твоего потенциала.</p>
+        <div class="saas-hero">
+            <span class="hud-pill pro-pill" style="margin-bottom: 20px;">⚡ Next-Gen Product & Biohack Ecosystem</span>
+            <h1 style="font-size: 52px; font-weight: 900; letter-spacing: -1.5px; margin-bottom: 15px; background: linear-gradient(135deg, #ffffff 30%, #58a6ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD</h1>
+            <p style="font-size: 19px; color: #8b949e; max-width: 650px; margin: 0 auto 30px auto; line-height: 1.5;">Архитектура продуктивности нового поколения. Контроль ЦНС, RPG-геймификация и предиктивное восстановление в едином интерфейсе.</p>
         </div>
     """, unsafe_allow_html=True)
 
+    # Главный баннер (Hero)
     try:
         st.image("hero.jpg", use_container_width=True)
     except:
         pass
 
     st.markdown("<br>", unsafe_allow_html=True)
-    c_btn1, c_btn2, c_btn3 = st.columns([1, 1.2, 1])
+    c_btn1, c_btn2, c_btn3 = st.columns([1, 1.3, 1])
     with c_btn2:
-        if st.button("⚡ Войти в систему / Начать", use_container_width=True, type="primary"):
+        if st.button("🚀 ЗАПУСТИТЬ СИСТЕМУ", use_container_width=True, type="primary"):
             st.session_state.page = "auth"
             st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; margin-bottom: 30px; font-weight: 800;'>🛠️ КЛЮЧЕВЫЕ МОДУЛИ ПЛАТФОРМЫ</h3>", unsafe_allow_html=True)
 
-    st.markdown("""
-        <div class="saas-section-card">
-            <h2 style="color: #58a6ff; margin-bottom: 10px;">🛡️ 1. Био-Мониторинг и Защита ЦНС</h2>
-            <p style="color: #e6edf3; font-size: 15px; line-height: 1.6; margin: 0;">Интеллектуальный анализ сна, экранного времени и спазма глаз. Предиктивный алгоритм вычисляет уровень усталости и защищает от эмоционального выгорания в реальном времени.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("bio.jpg", use_container_width=True)
-    except:
-        pass
+    # Сетка в стиле Bento (по 2 колонки для дорогого вида)
+    bc1, bc2 = st.columns(2)
 
-    st.markdown("""
-        <div class="saas-section-card">
-            <h2 style="color: #58a6ff; margin-bottom: 10px;">⚔️ 2. RPG-Прокачка и GitHub Heatmap</h2>
-            <p style="color: #e6edf3; font-size: 15px; line-height: 1.6; margin: 0;">Преврати рутину в увлекательную игру. Накапливай опыт (XP), повышай уровень персонажа, выполняй ежедневные квесты и отслеживай продуктивность по яркой тепловой карте.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("rpg.jpg", use_container_width=True)
-    except:
-        pass
+    with bc1:
+        st.markdown("""
+            <div class="bento-card">
+                <span style="font-size: 32px;">🛡️</span>
+                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">Био-Мониторинг ЦНС</h3>
+                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Интеллектуальный трекинг сна, экранного времени и спазма глаз. Предиктивный движок вычисляет уровень усталости и защищает от выгорания.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        try:
+            st.image("bio.jpg", use_container_width=True)
+        except:
+            pass
 
-    st.markdown("""
-        <div class="saas-section-card">
-            <h2 style="color: #58a6ff; margin-bottom: 10px;">🏆 3. Зал Славы и 36 Трофеев</h2>
-            <p style="color: #e6edf3; font-size: 15px; line-height: 1.6; margin: 0;">Коллекционируй уникальные достижения за выдающиеся успехи в учебе, олимпиадах, спорте (каратэ, кобудо, ОФП) и железную дисциплину.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("trophies.jpg", use_container_width=True)
-    except:
-        pass
+        st.markdown("""
+            <div class="bento-card" style="margin-top: 24px;">
+                <span style="font-size: 32px;">🏆</span>
+                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">Зал Славы (36 Трофеев)</h3>
+                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Элитная система достижений за успехи в учебе, кодинге, олимпиадах и спортивных единоборствах (каратэ, кобудо, ОФП).</p>
+            </div>
+        """, unsafe_allow_html=True)
+        try:
+            st.image("trophies.jpg", use_container_width=True)
+        except:
+            pass
 
-    st.markdown("""
-        <div class="saas-section-card">
-            <h2 style="color: #58a6ff; margin-bottom: 10px;">🧘 4. Нейро-Резет и Умный Советник</h2>
-            <p style="color: #e6edf3; font-size: 15px; line-height: 1.6; margin: 0;">Интерактивные таймеры пальминга, правила 20-20-20, дыхательные протоколы и персональный советник по восстановлению (растяжка, сауна, холодный душ).</p>
-        </div>
-    """, unsafe_allow_html=True)
-    try:
-        st.image("reset.jpg", use_container_width=True)
-    except:
-        pass
+    with bc2:
+        st.markdown("""
+            <div class="bento-card">
+                <span style="font-size: 32px;">⚔️</span>
+                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">RPG-Прокачка & Heatmap</h3>
+                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Геймификация рутины: уровни, очки опыта (XP), ежедневные квесты и GitHub-style тепловая карта активности.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        try:
+            st.image("rpg.jpg", use_container_width=True)
+        except:
+            pass
+
+        st.markdown("""
+            <div class="bento-card" style="margin-top: 24px;">
+                <span style="font-size: 32px;">🧘</span>
+                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">Нейро-Резет & Советник</h3>
+                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Интерактивные таймеры пауз, дыхательные протоколы и умный советник по контрастному душу, сауне и растяжке.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        try:
+            st.image("reset.jpg", use_container_width=True)
+        except:
+            pass
 
     st.markdown("<br>", unsafe_allow_html=True)
-    c_btn4, c_btn5, c_btn6 = st.columns([1, 1.2, 1])
+    c_btn4, c_btn5, c_btn6 = st.columns([1, 1.3, 1])
     with c_btn5:
-        if st.button("🚀 Начать использовать SaaS", use_container_width=True, type="primary"):
+        if st.button("⚡ ВОЙТИ В АККАУНТ", use_container_width=True, type="primary"):
             st.session_state.page = "auth"
             st.rerun()
 
@@ -599,3 +615,76 @@ elif st.session_state.page == "dashboard":
                         unsafe_allow_html=True
                     )
                     p_bar.progress((20 - s) / 20.0)
+                    time.sleep(1)
+                b_box.markdown(
+                    '<div class="breath-box" style="border-color:#3fb950;">✅ Фокус сброшен!</div>',
+                    unsafe_allow_html=True
+                )
+
+        with rc2:
+            st.markdown("##### 🌬️ Дыхание 4-7-8")
+            if st.button("▶️ Запустить 4-7-8", use_container_width=True):
+                breath_placeholder = st.empty()
+                b_bar = st.progress(0)
+                phases = [
+                    ("🟢 ВДОХ НОСОМ (4 сек)", 4, "#3fb950"),
+                    ("🟡 ЗАДЕРЖКА (7 сек)", 7, "#d29922"),
+                    ("🔵 ВЫДОХ РТОМ (8 сек)", 8, "#58a6ff")
+                ]
+                total_sec = 19
+                elapsed = 0
+                for label, duration, col in phases:
+                    for s in range(duration, 0, -1):
+                        elapsed += 1
+                        breath_placeholder.markdown(
+                            f'<div class="breath-box" style="border-color:{col};">'
+                            f'{label}<br><span style="font-size:24px;">{s} с</span></div>',
+                            unsafe_allow_html=True
+                        )
+                        b_bar.progress(elapsed / total_sec)
+                        time.sleep(1)
+                breath_placeholder.markdown(
+                    '<div class="breath-box" style="border-color:#3fb950;">✨ Цикл завершен!</div>',
+                    unsafe_allow_html=True
+                )
+
+            st.markdown("##### 📦 Коробчатое дыхание")
+            if st.button("▶️ Запустить Box Breathing", use_container_width=True):
+                box_ph = st.empty()
+                box_bar = st.progress(0)
+                box_steps = [
+                    ("🟢 Вдох (4с)", 4),
+                    ("🟡 Задержка (4с)", 4),
+                    ("🔵 Выдох (4с)", 4),
+                    ("🟣 Задержка (4с)", 4)
+                ]
+                box_total = 16
+                box_elapsed = 0
+                for label, dur in box_steps:
+                    for s in range(dur, 0, -1):
+                        box_elapsed += 1
+                        box_ph.markdown(
+                            f'<div class="breath-box" style="border-color:#58a6ff;">{label}<br><span style="font-size:24px;">{s} с</span></div>',
+                            unsafe_allow_html=True
+                        )
+                        box_bar.progress(box_elapsed / box_total)
+                        time.sleep(1)
+                box_ph.markdown(
+                    '<div class="breath-box" style="border-color:#3fb950;">⚡ Фокус на максимум!</div>',
+                    unsafe_allow_html=True
+                )
+
+    # ВКЛАДКА 6: 📄 ОТЧЕТ & ТОП
+    with tab_rep:
+        rep_c1, rep_c2 = st.columns([1.1, 1])
+        with rep_c1:
+            st.markdown("#### 📄 Официальная сводка")
+            report_text = CoreEngine.generate_weekly_report(uname, is_pro, df_logs, df_rpg)
+            st.text_area("Предпросмотр:", value=report_text, height=220)
+        with rep_c2:
+            st.markdown("#### 🏅 Глобальный Лидерборд")
+            df_leader = DatabaseManager.get_leaderboard()
+            if df_leader is not None and not df_leader.empty:
+                st.dataframe(df_leader, use_container_width=True, hide_index=True)
+            else:
+                st.info("Пока нет участников в таблице лидеров.")
