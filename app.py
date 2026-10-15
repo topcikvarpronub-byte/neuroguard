@@ -1112,20 +1112,22 @@ elif st.session_state.page == "dashboard":
             "🥩 Трекер Питания и Воды"
         ])
 
-        with sub_tr1:
+                with sub_tr1:
             tr_c1, tr_c2 = st.columns([1.15, 1])
             with tr_c1:
                 st.markdown("##### Рабочие протоколы тренировок")
-                with st.expander("Добавить событие или дедлайн"):
+                w_choice = st.selectbox("Выбери направление:", list(WORKOUT_PROTOCOLS.keys()), key="workout_direction_select")
                 steps = WORKOUT_PROTOCOLS.get(w_choice, [])
                 st.markdown('<div class="bento-card">', unsafe_allow_html=True)
                 for idx_s, st_text in enumerate(steps, 1):
                     st.markdown(f"**{idx_s}.** {st_text}")
                 st.markdown('</div>', unsafe_allow_html=True)
+
             with tr_c2:
                 st.markdown("##### ⏱️ Спортивные таймеры")
                 tm_display = st.empty()
-                tm_bar = st.progress()
+                tm_bar = st.progress(0)
+
                 tc_1, tc_2, tc_3 = st.columns(3)
                 with tc_1:
                     if st.button("🔥 Табата 20/10", use_container_width=True, type="primary"):
