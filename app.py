@@ -21,7 +21,7 @@ if "page" not in st.session_state:
 if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
-# --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ (GLASSMORPHISM & FONTS) ---
+# --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ ---
 bg_main = "#0b0f19"
 bg_card = "#131c2e"
 border_col = "rgba(255, 255, 255, 0.08)"
@@ -112,22 +112,16 @@ st.markdown(f"""
     }}
     .landing-hero {{
         text-align: center;
-        padding: 60px 20px 30px 20px;
+        padding: 40px 20px 20px 20px;
     }}
-    .landing-card {{
+    .section-box {{
         background: rgba(19, 28, 46, 0.6);
         backdrop-filter: blur(14px);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 20px;
-        padding: 24px;
-        margin-bottom: 20px;
-        text-align: center;
+        padding: 30px;
+        margin: 30px 0;
         box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        transition: transform 0.3s ease;
-    }}
-    .landing-card:hover {{
-        transform: translateY(-5px);
-        border-color: rgba(88, 166, 255, 0.3);
     }}
     .system-footer {{
         text-align: center;
@@ -142,47 +136,82 @@ st.markdown(f"""
 
 
 # =====================================================================
-# ЭКРАН 1: 🌟 ЛЕНДИНГ (SaaS Landing Page)
+# ЭКРАН 1: 🌟 ДЛИННЫЙ ЛЕНДИНГ С КАРТИНКАМИ
 # =====================================================================
 if st.session_state.page == "landing":
     st.markdown("""
         <div class="landing-hero">
             <span class="hud-pill pro-pill" style="margin-bottom: 15px;">🚀 v2.5 Enterprise Edition</span>
-            <h1 style="font-size: 52px; font-weight: 800; letter-spacing: -1px; margin-bottom: 15px; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD SaaS</h1>
-            <p style="font-size: 20px; color: #8b949e; max-width: 600px; margin: 0 auto;">Интеллектуальная экосистема для глубокой продуктивности, биохакинга ЦНС и геймификации твоего потенциала.</p>
+            <h1 style="font-size: 46px; font-weight: 800; letter-spacing: -1px; margin-bottom: 15px; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD SaaS</h1>
+            <p style="font-size: 18px; color: #8b949e; max-width: 650px; margin: 0 auto;">Интеллектуальная экосистема для глубокой продуктивности, биохакинга ЦНС и геймификации твоего потенциала.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("""
-            <div class="landing-card">
-                <div style="font-size: 32px; margin-bottom: 10px;">🛡️</div>
-                <h3>Био-Мониторинг</h3>
-                <p style="font-size: 13px; color: #8b949e;">Контроль сна, экранного времени, спазма глаз и предиктивный алгоритм предотвращения выгорания.</p>
-            </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown("""
-            <div class="landing-card">
-                <div style="font-size: 32px; margin-bottom: 10px;">⚔️</div>
-                <h3>RPG-Прокачка</h3>
-                <p style="font-size: 13px; color: #8b949e;">Система уровней, опыта (XP), ежедневных квестов и GitHub-style тепловая карта активности.</p>
-            </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        st.markdown("""
-            <div class="landing-card">
-                <div style="font-size: 32px; margin-bottom: 10px;">🏆</div>
-                <h3>Зал Славы</h3>
-                <p style="font-size: 13px; color: #8b949e;">36 уникальных трофеев за дисциплину, спорт, кодинг, интеллектуальные победы и олимпиады.</p>
-            </div>
-        """, unsafe_allow_html=True)
+    # Картинка 1: Hero
+    try:
+        st.image("hero.jpg", use_container_width=True)
+    except:
+        st.info("💡 Загрузите hero.jpg в корень репозитория")
 
     st.markdown("<br>", unsafe_allow_html=True)
     c_btn1, c_btn2, c_btn3 = st.columns([1, 1.2, 1])
     with c_btn2:
-        if st.button("⚡ Войти в систему", use_container_width=True, type="primary"):
+        if st.button("⚡ Войти в систему / Начать", use_container_width=True, type="primary"):
+            st.session_state.page = "auth"
+            st.rerun()
+
+    # Секция 2: Био-мониторинг
+    st.markdown("""
+        <div class="section-box">
+            <h2>🛡️ 1. Био-Мониторинг и Защита ЦНС</h2>
+            <p style="color: #8b949e; font-size: 15px;">Интеллектуальный анализ сна, экранного времени и спазма глаз. Предиктивный алгоритм вычисляет уровень усталости и защищает от эмоционального выгорания в реальном времени.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    try:
+        st.image("bio.jpg", use_container_width=True)
+    except:
+        pass
+
+    # Секция 3: RPG и тепловая карта
+    st.markdown("""
+        <div class="section-box">
+            <h2>⚔️ 2. RPG-Прокачка и GitHub Heatmap</h2>
+            <p style="color: #8b949e; font-size: 15px;">Преврати рутину в увлекательную игру. Накапливай опыт (XP), повышай уровень персонажа, выполняй ежедневные квесты и отслеживай продуктивность по яркой тепловой карте.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    try:
+        st.image("rpg.jpg", use_container_width=True)
+    except:
+        pass
+
+    # Секция 4: Зал славы
+    st.markdown("""
+        <div class="section-box">
+            <h2>🏆 3. Зал Славы и 36 Трофеев</h2>
+            <p style="color: #8b949e; font-size: 15px;">Коллекционируй уникальные достижения за выдающиеся успехи в учебе, олимпиадах, спорте (каратэ, кобудо, ОФП) и железную дисциплину.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    try:
+        st.image("trophies.jpg", use_container_width=True)
+    except:
+        pass
+
+    # Секция 5: Нейро-резет
+    st.markdown("""
+        <div class="section-box">
+            <h2>🧘 4. Нейро-Резет и Умный Советник</h2>
+            <p style="color: #8b949e; font-size: 15px;">Интерактивные таймеры пальминга, правила 20-20-20, дыхательные протоколы и персональный советник по восстановлению (растяжка, сауна, холодный душ).</p>
+        </div>
+    """, unsafe_allow_html=True)
+    try:
+        st.image("reset.jpg", use_container_width=True)
+    except:
+        pass
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    c_btn4, c_btn5, c_btn6 = st.columns([1, 1.2, 1])
+    with c_btn5:
+        if st.button("🚀 Начать использовать", use_container_width=True, type="primary"):
             st.session_state.page = "auth"
             st.rerun()
 
