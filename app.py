@@ -1104,7 +1104,7 @@ elif st.session_state.page == "dashboard":
 # =================================================================
     # ПАПКА 4: 🏋️ СПОРТ, PR-РЕКОРДЫ & ТРЕКЕР ПИТАНИЯ
     # =================================================================
-   with tab_train:
+    with tab_train:
         st.markdown("#### 🏋️ Тренировочный хаб, Личные рекорды и Рацион")
         sub_tr1, sub_tr2, sub_tr3 = st.tabs([
             "📋 Программы и Таймеры",
@@ -1112,7 +1112,7 @@ elif st.session_state.page == "dashboard":
             "🥩 Трекер Питания и Воды"
         ])
 
-                with sub_tr1:
+        with sub_tr1:
             tr_c1, tr_c2 = st.columns([1.15, 1])
             with tr_c1:
                 st.markdown("##### Рабочие протоколы тренировок")
@@ -1128,7 +1128,6 @@ elif st.session_state.page == "dashboard":
                 tm_display = st.empty()
                 tm_bar = st.progress(0)
 
-                tc_1, tc_2, tc_3 = st.columns(3)
                 with tc_1:
                     if st.button("🔥 Табата 20/10", use_container_width=True, type="primary"):
                         for s in range(20, 0, -1):
