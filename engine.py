@@ -143,6 +143,7 @@ class CoreEngine:
         if curr_note.strip():
             notes_count += 1
 
+        # Базовые триггеры для твоего каталога
         triggers = {
             "BIO_01": (curr_eye <= 4 and not curr_impact),
             "BIO_02": (curr_eye <= 2),
@@ -180,6 +181,11 @@ class CoreEngine:
             "DSC_07": (lvl >= 5),
             "DSC_08": (lvl >= 10),
             "DSC_09": (lvl >= 20),
+            # Экстрим и легенды (открываются по уровню и XP)
+            "EXT_01": (sum_xp >= 1000),
+            "EXT_05": (curr_reps >= 100 or sum_xp >= 2000),
+            "SLF_01": True,
+            "SLF_02": True,
         }
 
         for code, is_met in triggers.items():
