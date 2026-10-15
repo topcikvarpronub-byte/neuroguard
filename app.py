@@ -419,17 +419,111 @@ with tab_ach:
             </div>
             """, unsafe_allow_html=True)
 
-# =====================================================================
-# ВКЛАДКА 5: 🧘 РЕЗЕТ
+# # =====================================================================
+# ВКЛАДКА 5: 🧘 РЕЗЕТ (Антистресс, Восстановление и Зрение)
 # =====================================================================
 with tab_sos:
-    st.markdown("#### 🧘 Нейро-Резет: Разгрузка сетчатки и ЦНС")
-    if st.button("▶️ Запустить 60 сек Пальминга", use_container_width=True, type="primary"):
-        bar = st.progress(0, text="Расслабь глаза...")
-        for sec in range(1, 61):
-            bar.progress(sec / 60.0)
-            time.sleep(1)
-        st.success("✅ Пальминг завершен!")
+    st.markdown("#### 🧘 Нейро-Резет: Восстановление и Антистресс")
+    
+    # 🧠 Умный советник по восстановлению (Адаптируется под нагрузку)
+    recovery_advice = CoreEngine.generate_recovery_advice(df_logs)
+    st.info(recovery_advice)
+    st.divider()
+
+    st.markdown("#### ⏱️ Интерактивные протоколы разгрузки")
+    rc1, rc2 = st.columns(2)
+
+    with rc1:
+        st.markdown("##### 👁️ Таймер Пальминга (60 сек)")
+        st.caption("Снимает спазм аккомодации глаз после долгого кодинга.")
+        if st.button("▶️ Запустить Пальминг", use_container_width=True, type="primary"):
+            bar = st.progress(0, text="Закрой глаза... Расслабься...")
+            status_box = st.empty()
+            for sec in range(1, 61):
+                status_box.markdown(
+                    f'<div class="breath-box">👁️ Восстановление: <b>{60 - sec} сек</b></div>',
+                    unsafe_allow_html=True
+                )
+                bar.progress(sec / 60.0)
+                time.sleep(1)
+            status_box.markdown(
+                '<div class="breath-box" style="border-color:#3fb950; background:rgba(63,185,80,0.2);">'
+                '✅ Пальминг завершен! Глаза отдохнули.</div>',
+                unsafe_allow_html=True
+            )
+
+        st.markdown("##### 🔭 Правило 20-20-20 (Для зрения)")
+        st.caption("Посмотри в окно на удаленный объект (6 метров) на 20 секунд.")
+        if st.button("▶️ Запустить 20 сек паузу", use_container_width=True):
+            b_box = st.empty()
+            p_bar = st.progress(0)
+            for s in range(20, 0, -1):
+                b_box.markdown(
+                    f'<div class="breath-box" style="border-color:#3fb950;">🔭 Смотри вдаль!<br><span style="font-size:24px;">{s} с</span></div>',
+                    unsafe_allow_html=True
+                )
+                p_bar.progress((20 - s) / 20.0)
+                time.sleep(1)
+            b_box.markdown(
+                '<div class="breath-box" style="border-color:#3fb950;">✅ Фокус сброшен! Можно продолжать работу.</div>',
+                unsafe_allow_html=True
+            )
+
+    with rc2:
+        st.markdown("##### 🌬️ Дыхание 4-7-8 (Релаксация)")
+        st.caption("Снижает пульс и уровень кортизола за 19 секунд.")
+        if st.button("▶️ Запустить 4-7-8", use_container_width=True):
+            breath_placeholder = st.empty()
+            b_bar = st.progress(0)
+            phases = [
+                ("🟢 ВДОХ НОСОМ (4 сек)", 4, "#3fb950"),
+                ("🟡 ЗАДЕРЖКА (7 сек)", 7, "#d29922"),
+                ("🔵 ВЫДОХ РТОМ (8 сек)", 8, "#58a6ff")
+            ]
+            total_sec = 19
+            elapsed = 0
+            for label, duration, col in phases:
+                for s in range(duration, 0, -1):
+                    elapsed += 1
+                    breath_placeholder.markdown(
+                        f'<div class="breath-box" style="border-color:{col};">'
+                        f'{label}<br><span style="font-size:24px;">{s} с</span></div>',
+                        unsafe_allow_html=True
+                    )
+                    b_bar.progress(elapsed / total_sec)
+                    time.sleep(1)
+            breath_placeholder.markdown(
+                '<div class="breath-box" style="border-color:#3fb950;">✨ Цикл завершен! ЦНС в балансе.</div>',
+                unsafe_allow_html=True
+            )
+
+        st.markdown("##### 📦 Коробчатое дыхание (Фокус)")
+        st.caption("Метод спецслужб: вдох 4с — задержка 4с — выдох 4с — задержка 4с.")
+        if st.button("▶️ Запустить Box Breathing", use_container_width=True):
+            box_ph = st.empty()
+            box_bar = st.progress(0)
+            box_steps = [
+                ("🟢 Вдох (4с)", 4),
+                ("🟡 Задержка (4с)", 4),
+                ("🔵 Выдох (4с)", 4),
+                ("🟣 Задержка (4с)", 4)
+            ]
+            box_total = 16
+            box_elapsed = 0
+            for label, dur in box_steps:
+                for s in range(dur, 0, -1):
+                    box_elapsed += 1
+                    box_ph.markdown(
+                        f'<div class="breath-box" style="border-color:#58a6ff;">{label}<br><span style="font-size:24px;">{s} с</span></div>',
+                        unsafe_allow_html=True
+                    )
+                    box_bar.progress(box_elapsed / box_total)
+                    time.sleep(1)
+            box_ph.markdown(
+                '<div class="breath-box" style="border-color:#3fb950;">⚡ Фокус и концентрация на максимум!</div>',
+                unsafe_allow_html=True
+            )
+
 
 # =====================================================================
 # ВКЛАДКА 6: 📄 ОТЧЕТ & ТОП
