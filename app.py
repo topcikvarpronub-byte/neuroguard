@@ -1,38 +1,20 @@
-# ==============================================================================
-# NEUROGUARD OS — ENTERPRISE PRODUCTIVITY & BIO-RHYTHM PLATFORM
-# ЧАСТЬ 1 ИЗ 2: ЯДРО, СТИЛИ, БАЗА ДАННЫХ, АВТОРИЗАЦИЯ, ГЛАВНЫЙ ХАБ, БИО И ПЛАН
-# ==============================================================================
+import os
 import time
-import json
-import sqlite3
-from datetime import date, datetime, timedelta
-import pandas as pd
+from datetime import date
 import streamlit as st
+import pandas as pd
 
-# Безопасный импорт каталогов из library_data.py с резервным фоллбэком
-try:
-    from library_data import LIBRARY_CATALOG, SKINS_CATALOG, WORKOUT_PROTOCOLS
-except ImportError:
-    SKINS_CATALOG = {
-        "cyber_blue": {
-            "name": "Cyber Core (Default)",
-            "avatar": "⚡",
-            "role": "Оператор Системы",
-            "accent": "#58a6ff",
-            "glow": "rgba(88, 166, 255, 0.25)",
-            "min_lvl": 1,
-            "desc": "Классический холодный неон в стиле Linear. Баланс фокуса и спокойствия для долгой работы."
-        }
-    }
-    WORKOUT_PROTOCOLS = {
-        "Калистеника: Сила и Горизонт": [
-            "Суставная разминка + разогрев кистей и плеч — 7 мин.",
-            "Статика: удержание закрытого горизонта — 5 подходов по 12 сек.",
-            "Объемный блок: 100 подтягиваний за минимальное время (EMOM)."
-        ]
-    }
-    LIBRARY_CATALOG = {"Психология & Мышление": []}
+# ==============================================================================
+# МОДУЛЬНЫЕ ИМПОРТЫ ИЗ ТВОИХ ФАЙЛОВ РЕПОЗИТОРИЯ
+# ==============================================================================
+from database import DatabaseManager
+from engine import CoreEngine
+from achievements_data import ACHIEVEMENTS_CATALOG
+from library_data import SKINS_CATALOG, WORKOUT_PROTOCOLS, LIBRARY_CATALOG
 
+# ==============================================================================
+# 1. КОНФИГУРАЦИЯ СТРАНИЦЫ И ИНИЦИАЛИЗАЦИЯ БАЗЫ
+# ==============================================================================
 st.set_page_config(
     page_title="NeuroGuard OS",
     page_icon="⚡",
@@ -40,1423 +22,778 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==============================================================================
-# 1. НАДЕЖНЫЙ МЕНЕДЖЕР БАЗЫ ДАННЫХ (SQLite)
-# ==============================================================================
-class DatabaseManager:
-    DB_PATH = "neuroguard_os_v5.db"
-
-    @classmethod
-    def get_conn(cls):
-        return sqlite3.connect(cls.DB_PATH, check_same_thread=False)
-
-    @classmethod
-    def init_db(cls):
-        conn = cls.get_conn()
-        c = conn.cursor()
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                xp INTEGER DEFAULT 0,
-                pro_mode INTEGER DEFAULT 1,
-                active_skin TEXT DEFAULT 'cyber_blue',
-                created_at TEXT
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS daily_manifesto (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                log_date TEXT,
-                focus_text TEXT,
-                mode_tag TEXT,
-                UNIQUE(user_id, log_date)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS bio_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                log_date TEXT,
-                sleep_hours REAL,
-                sleep_quality INTEGER,
-                screen_hours REAL,
-                eye_strain INTEGER,
-                workout_type TEXT,
-                workout_rpe INTEGER,
-                heavy_load INTEGER,
-                readiness_score INTEGER,
-                UNIQUE(user_id, log_date)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS energy_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                log_date TEXT,
-                day_period TEXT,
-                phys_tone INTEGER,
-                mental_focus INTEGER,
-                stress_lvl INTEGER,
-                note TEXT,
-                created_at TEXT
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                task_date TEXT,
-                title TEXT,
-                category TEXT,
-                priority TEXT,
-                xp_reward INTEGER,
-                is_done INTEGER DEFAULT 0
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS habits (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                title TEXT,
-                category TEXT,
-                xp_reward INTEGER DEFAULT 25
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS habit_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                habit_id INTEGER,
-                log_date TEXT,
-                status INTEGER DEFAULT 1,
-                UNIQUE(user_id, habit_id, log_date)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS pr_records (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                category TEXT,
-                record_title TEXT,
-                record_value REAL,
-                record_unit TEXT,
-                achieved_date TEXT
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS nutrition_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                log_date TEXT,
-                calories INTEGER DEFAULT 0,
-                protein INTEGER DEFAULT 0,
-                fats INTEGER DEFAULT 0,
-                carbs INTEGER DEFAULT 0,
-                water_ml INTEGER DEFAULT 0,
-                UNIQUE(user_id, log_date)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS book_progress (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                book_title TEXT,
-                status TEXT,
-                notes TEXT,
-                rating INTEGER DEFAULT 5,
-                UNIQUE(user_id, book_title)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS goals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                title TEXT,
-                category TEXT,
-                current_val REAL DEFAULT 0,
-                target_val REAL DEFAULT 100,
-                unit TEXT DEFAULT 'ед.'
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS countdowns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                title TEXT,
-                target_date TEXT,
-                tag TEXT DEFAULT 'Старт'
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS focus_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                session_date TEXT,
-                minutes INTEGER,
-                topic TEXT,
-                xp_earned INTEGER
-            )
-        """)
-
-        conn.commit()
-        conn.close()
-
-    @classmethod
-    def ensure_defaults(cls, user_id: int):
-        conn = cls.get_conn()
-        c = conn.cursor()
-
-        c.execute("SELECT COUNT(*) FROM goals WHERE user_id = ?", (user_id,))
-        if c.fetchone()[0] == 0:
-            default_goals = [
-                (user_id, "Закрыть план на 100% дней", "Дисциплина", 5.0, 30.0, "дн"),
-                (user_id, "Решить задач по коду/ЕГЭ", "Интеллект", 22.0, 100.0, "задач"),
-                (user_id, "Сделать суммарно повторений ОФП", "Спорт", 1450.0, 10000.0, "повт")
-            ]
-            c.executemany(
-                "INSERT INTO goals (user_id, title, category, current_val, target_val, unit) VALUES (?, ?, ?, ?, ?, ?)",
-                default_goals
-            )
-
-        c.execute("SELECT COUNT(*) FROM habits WHERE user_id = ?", (user_id,))
-        if c.fetchone()[0] == 0:
-            default_habits = [
-                (user_id, "Утренняя разминка и статика (Горизонт)", "Спорт", 30),
-                (user_id, "Решение задач (Проф. Математика / Python)", "Интеллект", 40),
-                (user_id, "Английский язык (шаг к C1)", "Интеллект", 25),
-                (user_id, "Работа над проектами (Figma / Монтаж)", "Проекты", 35),
-                (user_id, "Чтение 20+ страниц без телефона", "Фокус", 25),
-                (user_id, "Сон до 23:30 (Восстановление ЦНС)", "Биохакинг", 30)
-            ]
-            c.executemany(
-                "INSERT INTO habits (user_id, title, category, xp_reward) VALUES (?, ?, ?, ?)",
-                default_habits
-            )
-
-        c.execute("SELECT COUNT(*) FROM pr_records WHERE user_id = ?", (user_id,))
-        if c.fetchone()[0] == 0:
-            default_prs = [
-                (user_id, "Калистеника", "100 подтягиваний на время", 14.0, "мин", str(date.today())),
-                (user_id, "Калистеника", "Закрытый горизонт (удержание)", 15.0, "сек", str(date.today())),
-                (user_id, "Силовая база", "Жим штанги лежа (цель 100)", 85.0, "кг", str(date.today()))
-            ]
-            c.executemany(
-                "INSERT INTO pr_records (user_id, category, record_title, record_value, record_unit, achieved_date) VALUES (?, ?, ?, ?, ?, ?)",
-                default_prs
-            )
-
-        conn.commit()
-        conn.close()
-
-    @classmethod
-    def add_xp(cls, user_id: int, base_xp: int):
-        conn = cls.get_conn()
-        c = conn.cursor()
-        try:
-            c.execute("SELECT xp, pro_mode FROM users WHERE id = ?", (user_id,))
-            row = c.fetchone()
-            if row:
-                curr_xp = int(row[0]) if row[0] is not None else 0
-                pro = bool(row[1]) if row[1] is not None else True
-                mult = 1.25 if pro else 1.0
-                gain = int(round(base_xp * mult))
-                new_xp = max(0, curr_xp + gain)
-                c.execute("UPDATE users SET xp = ? WHERE id = ?", (new_xp, user_id))
-                conn.commit()
-        except Exception:
-            pass
-        finally:
-            conn.close()
-
-
 DatabaseManager.init_db()
 
+# ==============================================================================
+# 2. ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ СЕССИИ И СОСТОЯНИЙ
+# ==============================================================================
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+# Авто-восстановление сессии при перезагрузке страницы через URL-параметры
+if st.session_state.user is None and "u" in st.query_params and "p" in st.query_params:
+    u_param = st.query_params["u"]
+    p_param = st.query_params["p"]
+    user_obj, _ = DatabaseManager.authenticate_or_register(u_param, p_param, create_new=False)
+    if user_obj:
+        st.session_state.user = user_obj
+
+if "active_skin" not in st.session_state:
+    st.session_state.active_skin = "cyber_blue"
+
+if "morning_intent" not in st.session_state:
+    st.session_state.morning_intent = ""
+
+if "intent_locked" not in st.session_state:
+    st.session_state.intent_locked = False
+
+if "habits" not in st.session_state:
+    st.session_state.habits = {
+        "Гидратация (2.5л чистой воды)": False,
+        "Зрение: Протокол 20-20-20 и пальминг": False,
+        "Алгоритмы / Код (минимум 60 минут фокуса)": False,
+        "Физическая база / Суставная разминка": False,
+        "Чтение профильной литературы (30+ стр.)": False,
+        "Цифровой детокс за 1 час до сна": False
+    }
+
+if "pr_records" not in st.session_state:
+    st.session_state.pr_records = {
+        "Подтягивания за 14 мин (повторений)": 100,
+        "Закрытый горизонт (секунд)": 15,
+        "Жим штанги лежа (кг)": 95,
+        "Бег 5 км (минут)": 21.5
+    }
 
 # ==============================================================================
-# 2. ВСПОМОГАТЕЛЬНЫЕ РАСЧЕТЫ (УРОВНИ, РАНГИ, RPG-СТАТЫ, READINESS)
+# 3. ДИНАМИЧЕСКАЯ СТИЛИЗАЦИЯ (LINEAR / NOTION DARK UI)
 # ==============================================================================
-def get_level_data(xp: int):
-    lvl = max(1, (xp // 500) + 1)
-    curr_in_lvl = xp % 500
-    pct = int((curr_in_lvl / 500.0) * 100)
-    if lvl < 3:
-        rank, status = "B-РАНГ", "Старт Системы"
-    elif lvl < 7:
-        rank, status = "A-РАНГ", "Адепт Дисциплины"
-    elif lvl < 15:
-        rank, status = "S-РАНГ", "Архитектор Фокуса"
-    else:
-        rank, status = "SS-РАНГ", "Монарх Продуктивности"
-    return lvl, curr_in_lvl, 500, pct, rank, status
+skin_key = st.session_state.active_skin
+if skin_key not in SKINS_CATALOG:
+    skin_key = "cyber_blue"
+
+current_skin = SKINS_CATALOG[skin_key]
+accent_col = current_skin["accent"]
+glow_col = current_skin["glow"]
+
+st.markdown(f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {{
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: #0d1117;
+        color: #e6edf3;
+    }}
+
+    /* Убираем стандартные стрелочки в экспандерах и лишний декор */
+    details > summary {{
+        list-style: none;
+    }}
+    details > summary::-webkit-details-marker {{
+        display: none;
+    }}
+
+    /* Карточки в стиле Linear */
+    .linear-card {{
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 14px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }}
+    .linear-card:hover {{
+        border-color: {accent_col};
+        box-shadow: 0 4px 20px {glow_col};
+    }}
+
+    /* Метрики */
+    .metric-box {{
+        background: linear-gradient(180deg, #161b22 0%, #0d1117 100%);
+        border: 1px solid #30363d;
+        border-left: 3px solid {accent_col};
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+    }}
+    .metric-label {{
+        font-size: 0.78rem;
+        color: #8b949e;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }}
+    .metric-value {{
+        font-size: 1.55rem;
+        font-weight: 700;
+        color: #f0f6fc;
+        margin-top: 4px;
+    }}
+
+    /* Бейджи */
+    .pill-badge {{
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid #30363d;
+        color: {accent_col};
+    }}
+
+    /* Трофеи */
+    .trophy-card {{
+        background: #12161c;
+        border: 1px solid #21262d;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 8px;
+        opacity: 0.55;
+    }}
+    .trophy-unlocked {{
+        background: #161b22;
+        border: 1px solid {accent_col};
+        box-shadow: 0 0 14px {glow_col};
+        opacity: 1.0;
+    }}
+
+    /* Кастомный прогресс-бар */
+    .xp-bar-bg {{
+        width: 100%;
+        height: 8px;
+        background: #21262d;
+        border-radius: 999px;
+        overflow: hidden;
+        margin: 8px 0;
+    }}
+    .xp-bar-fill {{
+        height: 100%;
+        background: {accent_col};
+        border-radius: 999px;
+    }}
+</style>
+""", unsafe_allow_html=True)
 
 
-def calc_readiness(sleep_h, sleep_q, screen_h, eye_s, rpe, heavy):
-    sleep_score = min(45.0, (sleep_h / 8.0) * 25.0 + (sleep_q / 10.0) * 20.0)
-    fatigue_penalty = (max(0.0, screen_h - 4.0) * 1.8) + (eye_s * 1.4) + (rpe * 1.6) + (8.0 if heavy else 0.0)
-    raw = 58.0 + sleep_score - fatigue_penalty
-    return int(max(15, min(100, round(raw))))
-
-
-def get_rpg_stats(uid: int):
-    conn = DatabaseManager.get_conn()
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM pr_records WHERE user_id = ?", (uid,))
-    prs = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND is_done = 1", (uid,))
-    done_t = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND status = 1", (uid,))
-    done_h = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(minutes), 0) FROM focus_sessions WHERE user_id = ?", (uid,))
-    foc_m = c.fetchone()[0]
-    conn.close()
-
-    str_stat = 10 + prs * 2 + (done_h // 3)
-    agi_stat = 10 + (done_t // 2) + (done_h // 4)
-    int_stat = 10 + (foc_m // 25) + (done_t // 3)
-    dsc_stat = 10 + done_h + done_t
-    return str_stat, agi_stat, int_stat, dsc_stat
-
-
-def get_streak_metrics(uid: int):
-    conn = DatabaseManager.get_conn()
-    c = conn.cursor()
-    today = date.today()
-    green_days, yellow_days, red_days, streak = 0, 0, 0, 0
-    grace_used = 0
-
-    for i in range(30):
-        d_str = str(today - timedelta(days=i))
-        c.execute("SELECT COUNT(*), COALESCE(SUM(is_done), 0) FROM tasks WHERE user_id = ? AND task_date = ?", (uid, d_str))
-        t_tot, t_done = c.fetchone()
-        c.execute("SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND log_date = ? AND status = 1", (uid, d_str))
-        h_done = c.fetchone()[0]
-
-        score = (t_done + h_done)
-        if score >= 3:
-            green_days += 1
-            if i == streak + grace_used:
-                streak += 1
-        elif score >= 1:
-            yellow_days += 1
-            if i == streak + grace_used:
-                streak += 1
-        else:
-            if i < 7:
-                red_days += 1
-            if i == streak + grace_used and grace_used < 3 and i > 0:
-                grace_used += 1
-
-    conn.close()
-    week_pct = int(min(100, round(((green_days + yellow_days * 0.5) / 7.0) * 100)))
-    month_pct = int(min(100, round(((green_days + yellow_days * 0.5) / 30.0) * 100)))
-    return streak, green_days, yellow_days, red_days, week_pct, month_pct
+def show_banner_if_exists(filename: str):
+    """Безопасный вывод обложек разделов из репозитория"""
+    if os.path.exists(filename):
+        st.image(filename, use_container_width=True)
 
 
 # ==============================================================================
-# 3. СЕССИЯ И ЭКРАН АВТОРИЗАЦИИ
+# 4. АВТОРИЗАЦИЯ (ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ ВОШЕЛ)
 # ==============================================================================
-if "user_id" not in st.session_state:
-    st.session_state.user_id = None
-if "username" not in st.session_state:
-    st.session_state.username = None
-if "edit_manifesto" not in st.session_state:
-    st.session_state.edit_manifesto = False
+if st.session_state.user is None:
+    show_banner_if_exists("hero.jpg")
+    st.markdown("<h2 style='margin-bottom: 4px;'>⚡ NeuroGuard Workspace</h2>", unsafe_allow_html=True)
+    st.caption("Модульная операционная система биохакинга, аналитики ЦНС и продуктивности.")
 
-if st.session_state.user_id is None:
-    st.markdown("""
-        <style>
-        .stApp { background-color: #0b0f17; color: #e6edf3; }
-        .auth-box {
-            max-width: 460px; margin: 60px auto 20px auto; padding: 28px;
-            background: #111722; border: 1px solid #232d3f; border-radius: 16px;
-            box-shadow: 0 12px 35px rgba(0,0,0,0.45); text-align: center;
-        }
-        </style>
-        <div class="auth-box">
-            <h2 style="margin-bottom:4px; color:#58a6ff;">⚡ NeuroGuard OS</h2>
-            <p style="color:#8b949e; font-size:0.92rem; margin-bottom:0;">
-                Персональная экосистема продуктивности, биоритмов и дисциплины
-            </p>
+    col_auth1, col_auth2 = st.columns([1.2, 1])
+    with col_auth1:
+        st.markdown("""
+        <div class="linear-card">
+            <div style="font-weight: 600; font-size: 1.05rem; margin-bottom: 8px;">Единое рабочее пространство</div>
+            <div style="font-size: 0.88rem; color: #8b949e; line-height: 1.5;">
+                • <b>Мониторинг ЦНС и зрения:</b> контроль экранной нагрузки и качества восстановления.<br>
+                • <b>Аналитика прогресса:</b> автоматический расчёт опыта, уровней и продуктивности.<br>
+                • <b>Зал Славы:</b> 100 достижений с синхронизацией в реальном времени.<br>
+                • <b>База знаний и протоколы:</b> тренировочные циклы и профильная библиотека.
+            </div>
         </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    c_l, c_m, c_r = st.columns([1, 1.4, 1])
-    with c_m:
-        auth_tab1, auth_tab2 = st.tabs(["🔑 Вход в систему", "🚀 Быстрая регистрация"])
-        with auth_tab1:
-            l_user = st.text_input("Логин оператора:", value="Igor_Founder", key="auth_login_user")
-            l_pass = st.text_input("Пароль:", type="password", value="10012010", key="auth_login_pass")
-            if st.button("Войти в терминал", use_container_width=True, type="primary", key="auth_login_btn"):
-                conn = DatabaseManager.get_conn()
-                c = conn.cursor()
-                c.execute("SELECT id, username FROM users WHERE username = ? AND password = ?", (l_user.strip(), l_pass.strip()))
-                user_row = c.fetchone()
-                if not user_row and l_user.strip() == "Igor_Founder":
-                    c.execute(
-                        "INSERT INTO users (username, password, xp, pro_mode, active_skin, created_at) VALUES (?, ?, 0, 1, 'cyber_blue', ?)",
-                        ("Igor_Founder", l_pass.strip(), str(date.today()))
-                    )
-                    conn.commit()
-                    c.execute("SELECT id, username FROM users WHERE username = ?", ("Igor_Founder",))
-                    user_row = c.fetchone()
-                conn.close()
+        if st.button("🚀 Быстрый вход (Профиль Основателя: Igor_Founder)", use_container_width=True):
+            user_obj, err = DatabaseManager.authenticate_or_register("Igor_Founder", "0000", create_new=False)
+            if user_obj:
+                st.session_state.user = user_obj
+                st.query_params["u"] = "Igor_Founder"
+                st.query_params["p"] = "0000"
+                st.rerun()
 
-                if user_row:
-                    st.session_state.user_id = user_row[0]
-                    st.session_state.username = user_row[1]
-                    DatabaseManager.ensure_defaults(user_row[0])
-                    st.rerun()
-                else:
-                    st.error("Неверный логин или пароль.")
+    with col_auth2:
+        auth_mode = st.radio("Режим доступа", ["Вход в систему", "Регистрация профиля"], horizontal=True)
+        u_input = st.text_input("Никнейм оператора", value="Igor_Founder")
+        p_input = st.text_input("PIN-код доступа", value="0000", type="password")
 
-        with auth_tab2:
-            r_user = st.text_input("Новый позывной (логин):", placeholder="Например: Igor_Founder", key="auth_reg_user")
-            r_pass = st.text_input("Создайте пароль:", type="password", key="auth_reg_pass")
-            if st.button("Создать профиль", use_container_width=True, key="auth_reg_btn"):
-                if r_user.strip() and r_pass.strip():
-                    conn = DatabaseManager.get_conn()
-                    c = conn.cursor()
-                    try:
-                        c.execute(
-                            "INSERT INTO users (username, password, xp, pro_mode, active_skin, created_at) VALUES (?, ?, 0, 1, 'cyber_blue', ?)",
-                            (r_user.strip(), r_pass.strip(), str(date.today()))
-                        )
-                        conn.commit()
-                        new_id = c.lastrowid
-                        conn.close()
-                        DatabaseManager.ensure_defaults(new_id)
-                        st.session_state.user_id = new_id
-                        st.session_state.username = r_user.strip()
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        conn.close()
-                        st.warning("Такой позывной уже занят.")
-                else:
-                    st.warning("Заполни логин и пароль.")
+        if st.button("Подтвердить доступ", type="primary", use_container_width=True):
+            is_new = (auth_mode == "Регистрация профиля")
+            user_obj, err = DatabaseManager.authenticate_or_register(u_input, p_input, create_new=is_new)
+            if err:
+                st.error(err)
+            else:
+                st.session_state.user = user_obj
+                st.query_params["u"] = u_input
+                st.query_params["p"] = p_input
+                st.rerun()
+
     st.stop()
 
 
 # ==============================================================================
-# 4. ЗАГРУЗКА ПРОФИЛЯ, СКИНА И CSS БЕЗ БАГА _arrow_right
+# 5. ЗАГРУЗКА ДАННЫХ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ И РАСЧЕТ ПАРАМЕТРОВ
 # ==============================================================================
-uid = st.session_state.user_id
-uname = st.session_state.username
-DatabaseManager.ensure_defaults(uid)
+user = st.session_state.user
+user_id = user["id"]
+username = user["username"]
+is_pro = user["is_pro"]
 
-conn = DatabaseManager.get_conn()
-c = conn.cursor()
-c.execute("SELECT xp, pro_mode, active_skin FROM users WHERE id = ?", (uid,))
-u_row = c.fetchone()
-conn.close()
+df_health = DatabaseManager.load_health_logs(user_id)
+df_rpg = DatabaseManager.load_rpg_logs(user_id)
 
-user_xp = u_row[0] if u_row else 0
-pro_active = bool(u_row[1]) if u_row else True
-skin_key = u_row[2] if (u_row and u_row[2] in SKINS_CATALOG) else "cyber_blue"
+total_xp = int(df_rpg["xp_earned"].sum()) if not df_rpg.empty else 0
+user_lvl = (total_xp // 500) + 1
+xp_in_curr_lvl = total_xp % 500
+xp_progress_pct = int((xp_in_curr_lvl / 500.0) * 100)
 
-lvl, xp_in_lvl, xp_need, lvl_pct, u_rank, u_status = get_level_data(user_xp)
-skin_cfg = SKINS_CATALOG.get(skin_key, list(SKINS_CATALOG.values())[0])
-accent_col = skin_cfg["accent"]
-glow_col = skin_cfg["glow"]
+last_readiness = int(df_health.iloc[0]["readiness_score"]) if not df_health.empty else 85
+rank_title, rank_color = CoreEngine.get_rank_badge(last_readiness)
+burnout_info = CoreEngine.analyze_burnout_risk(df_health, df_rpg)
 
-# ВАЖНО: В CSS мы НЕ перезаписываем font-family у span-иконок Streamlit,
-# чтобы никогда не появлялся текстовый артефакт _arrow_right!
-st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+# Синхронизация всех 100 достижений через CoreEngine
+curr_eye = int(df_health.iloc[0]["eye_strain"]) if not df_health.empty else 3
+curr_impact = bool(df_health.iloc[0]["head_impact"]) if not df_health.empty else False
+curr_study = float(df_health.iloc[0]["study_hours"]) if not df_health.empty else 4.0
+curr_sleep = float(df_health.iloc[0]["sleep_hours"]) if not df_health.empty else 8.0
+curr_sleep_q = int(df_health.iloc[0]["sleep_quality"]) if not df_health.empty else 8
 
-    html, body, .stApp, p, div, h1, h2, h3, h4, h5, h6, label, input, textarea, button {{
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }}
-    /* Защита иконок Streamlit от поломки шрифта (_arrow_right) */
-    [data-testid="stIconMaterial"], .material-icons, span[ translate="no" ] {{
-        font-family: 'Material Symbols Rounded', 'Material Icons' !important;
-    }}
+curr_plan = int(df_rpg.iloc[0]["plan_percent"]) if not df_rpg.empty else 0
+curr_reps = int(df_rpg.iloc[0]["exercises_reps"]) if not df_rpg.empty else 0
+curr_drills = int(df_rpg.iloc[0]["agility_drills"]) if not df_rpg.empty else 0
+curr_tasks = int(df_rpg.iloc[0]["tasks_solved"]) if not df_rpg.empty else 0
+curr_pages = int(df_rpg.iloc[0]["book_pages"]) if not df_rpg.empty else 0
+curr_topics = int(df_rpg.iloc[0]["topics_learned"]) if not df_rpg.empty else 0
+curr_note = str(df_rpg.iloc[0]["daily_note"]) if not df_rpg.empty else ""
 
-    .stApp {{
-        background-color: #0b0f17;
-        color: #e6edf3;
-    }}
-    [data-testid="stSidebar"] {{
-        background-color: #0e131d !important;
-        border-right: 1px solid #1f2937;
-    }}
-    .bento-card {{
-        background: linear-gradient(145deg, #121824 0%, #0e131d 100%);
-        border: 1px solid #222c3c;
-        border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 14px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
-    }}
-    .hero-card {{
-        background: linear-gradient(160deg, #141c2b 0%, #0d121c 100%);
-        border: 1px solid {accent_col};
-        border-radius: 16px;
-        padding: 22px 16px;
-        text-align: center;
-        box-shadow: 0 0 28px {glow_col};
-        margin-bottom: 14px;
-    }}
-    .manifesto-banner {{
-        background: linear-gradient(90deg, rgba(20, 28, 43, 0.95) 0%, rgba(15, 21, 33, 0.95) 100%);
-        border-left: 4px solid {accent_col};
-        border-top: 1px solid #232e42;
-        border-right: 1px solid #232e42;
-        border-bottom: 1px solid #232e42;
-        border-radius: 12px;
-        padding: 16px 20px;
-        margin-bottom: 18px;
-    }}
-    .pill-badge {{
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 999px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid #2b3648;
-        margin-right: 6px;
-        margin-bottom: 6px;
-        color: #c9d1d9;
-    }}
-    .pill-accent {{
-        border-color: {accent_col};
-        color: {accent_col};
-        background: {glow_col};
-    }}
-    .stat-chip {{
-        background: #161f2e;
-        border: 1px solid #263347;
-        border-radius: 999px;
-        padding: 6px 12px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        margin: 5px 0;
-        display: block;
-    }}
-    .breath-box {{
-        background: #121824;
-        border: 2px solid {accent_col};
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-        font-size: 1.05rem;
-        margin-bottom: 10px;
-    }}
-    .trophy-card {{
-        background: #111722;
-        border: 1px solid #202938;
-        border-radius: 10px;
-        padding: 10px 12px;
-        margin-bottom: 8px;
-        font-size: 0.84rem;
-    }}
-    .trophy-unlocked {{
-        border-color: {accent_col};
-        background: linear-gradient(135deg, rgba(22,31,48,0.9), rgba(14,19,29,0.9));
-    }}
-    </style>
-""", unsafe_allow_html=True)
+synced_achievements = CoreEngine.evaluate_and_sync_achievements(
+    user_id=user_id,
+    df_health=df_health,
+    df_rpg=df_rpg,
+    curr_eye=curr_eye,
+    curr_impact=curr_impact,
+    curr_study=curr_study,
+    curr_sleep=curr_sleep,
+    curr_sleep_q=curr_sleep_q,
+    curr_readiness=last_readiness,
+    curr_plan=curr_plan,
+    curr_reps=curr_reps,
+    curr_drills=curr_drills,
+    curr_tasks=curr_tasks,
+    curr_pages=curr_pages,
+    curr_topics=curr_topics,
+    curr_note=curr_note
+)
+unlocked_count = sum(1 for a in synced_achievements if a["unlocked"])
 
 
 # ==============================================================================
-# 5. БОКОВАЯ ПАНЕЛЬ (SIDEBAR)
+# 6. БОКОВАЯ ПАНЕЛЬ: ПРОФИЛЬ, ВЫБОР СКИНА И ЭКСПОРТ В ОДИН КЛИК
 # ==============================================================================
-streak_days, g_days, y_days, r_days, w_pct, m_pct = get_streak_metrics(uid)
-
 with st.sidebar:
-    st.markdown(f"### {skin_cfg['avatar']} {uname}")
-    st.caption(f"Статус: **{u_status}**")
-    st.markdown(f"**LVL {lvl}** • `{xp_in_lvl}/{xp_need} XP`")
-    st.progress(lvl_pct / 100.0)
-
-    st.markdown("---")
-    skin_keys = list(SKINS_CATALOG.keys())
-    skin_labels = [
-        f"{SKINS_CATALOG[k]['avatar']} {SKINS_CATALOG[k]['name']}" + (f" (с LVL {SKINS_CATALOG[k]['min_lvl']})" if lvl < SKINS_CATALOG[k]['min_lvl'] else "")
-        for k in skin_keys
-    ]
-    curr_skin_idx = skin_keys.index(skin_key) if skin_key in skin_keys else 0
-    picked_label = st.selectbox("🎨 Скин персонажа:", skin_labels, index=curr_skin_idx, key="sb_skin_selector")
-    picked_key = skin_keys[skin_labels.index(picked_label)]
-
-    if picked_key != skin_key:
-        req_lvl = SKINS_CATALOG[picked_key]["min_lvl"]
-        if lvl >= req_lvl:
-            conn = DatabaseManager.get_conn()
-            c = conn.cursor()
-            c.execute("UPDATE users SET active_skin = ? WHERE id = ?", (picked_key, uid))
-            conn.commit()
-            conn.close()
-            st.rerun()
-        else:
-            st.warning(f"Этот скин открывается на {req_lvl} уровне!")
-
-    st.markdown("---")
-    st.markdown("**🚦 Стабильность и Стрик**")
-    st.markdown(f"🔥 Серия: **{streak_days} дн.** *(до 3 пауз)*")
-    st.markdown(f"🟢 **{g_days}** | 🟡 **{y_days}** | 🔴 **{r_days}**")
-    st.caption(f"Неделя: **{w_pct}%** • Месяц: **{m_pct}%**")
-
-    st.markdown("---")
-    new_pro = st.toggle("💎 PRO-режим (+25% XP)", value=pro_active, key="sb_pro_toggle")
-    if new_pro != pro_active:
-        conn = DatabaseManager.get_conn()
-        c = conn.cursor()
-        c.execute("UPDATE users SET pro_mode = ? WHERE id = ?", (1 if new_pro else 0, uid))
-        conn.commit()
-        conn.close()
-        st.rerun()
-
-    if st.button("🌅 Изменить фокус дня", use_container_width=True, key="sb_edit_manifesto_btn"):
-        st.session_state.edit_manifesto = not st.session_state.edit_manifesto
-        st.rerun()
-
-    if st.button("🚪 Выйти из профиля", use_container_width=True, key="sb_logout_btn"):
-        st.session_state.user_id = None
-        st.session_state.username = None
-        st.rerun()
-
-
-# ==============================================================================
-# 6. ВЕРХНИЙ ХЕДЕР И УТРЕННИЙ МАНИФЕСТ ДНЯ
-# ==============================================================================
-st.markdown(f"""
-    <div style="margin-bottom: 12px;">
-        <h2 style="margin:0; font-weight:800;">{skin_cfg['avatar']} {uname} <span style="font-size:1rem; color:#8b949e; font-weight:500;">• {u_status}</span></h2>
-        <div style="margin-top:8px;">
-            <span class="pill-badge pill-accent">{skin_cfg['avatar']} {skin_cfg['name']}</span>
-            <span class="pill-badge">💎 {'PRO x1.25' if pro_active else 'STANDARD'}</span>
-            <span class="pill-badge">⚔️ {u_rank}</span>
-            <span class="pill-badge">🔥 {streak_days} дн.</span>
-            <span class="pill-badge">🏅 LVL {lvl}</span>
-            <span class="pill-badge">✨ {user_xp} XP</span>
+    st.markdown(f"""
+    <div class="linear-card" style="padding: 16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-size: 1.8rem;">{current_skin['avatar']}</div>
+            <span class="pill-badge">{'💎 PRO' if is_pro else 'FREE'}</span>
+        </div>
+        <div style="font-weight: 700; font-size: 1.1rem; margin-top: 8px;">{username}</div>
+        <div style="font-size: 0.8rem; color: #8b949e;">{current_skin['role']} • <span style="color:{rank_color}; font-weight:600;">{rank_title}</span></div>
+        <div style="margin-top: 12px; font-size: 0.78rem; display:flex; justify-content:space-between;">
+            <span>Уровень {user_lvl}</span>
+            <span style="color:{accent_col}; font-weight:600;">{total_xp} XP ({xp_in_curr_lvl}/500)</span>
+        </div>
+        <div class="xp-bar-bg">
+            <div class="xp-bar-fill" style="width: {xp_progress_pct}%;"></div>
+        </div>
+        <div style="font-size: 0.75rem; color: #8b949e; margin-top: 6px;">
+            Трофеев открыто: <b>{unlocked_count} / {len(ACHIEVEMENTS_CATALOG)}</b>
         </div>
     </div>
-""", unsafe_allow_html=True)
-
-today_str = str(date.today())
-conn = DatabaseManager.get_conn()
-c = conn.cursor()
-c.execute("SELECT focus_text, mode_tag FROM daily_manifesto WHERE user_id = ? AND log_date = ?", (uid, today_str))
-man_row = c.fetchone()
-conn.close()
-
-if not man_row or st.session_state.edit_manifesto:
-    st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-    st.markdown("##### 🌅 Настройка главного фокуса на сегодня")
-    m_col1, m_col2 = st.columns([2, 1])
-    with m_col1:
-        f_in = st.text_input(
-            "Твой главный результат дня:",
-            value=man_row[0] if man_row else "Держать высокий темп без суеты и перегрузок.",
-            key="manifesto_text_in"
-        )
-    with m_col2:
-        mode_opts = ["⚡ Сбалансированный режим", "🔥 Режим Прорыва (Hardcore)", "🛡️ Бережное восстановление"]
-        m_in = st.selectbox("Режим работы:", mode_opts, key="manifesto_mode_in")
-    if st.button("Зафиксировать манифест дня (+15 XP)", type="primary", key="save_manifesto_btn"):
-        conn = DatabaseManager.get_conn()
-        c = conn.cursor()
-        c.execute(
-            "INSERT OR REPLACE INTO daily_manifesto (user_id, log_date, focus_text, mode_tag) VALUES (?, ?, ?, ?)",
-            (uid, today_str, f_in.strip(), m_in)
-        )
-        conn.commit()
-        conn.close()
-        if not man_row:
-            DatabaseManager.add_xp(uid, 15)
-        st.session_state.edit_manifesto = False
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ==============================================================================
-# 7. НАВИГАЦИЯ ПО 7 ОСНОВНЫМ ВКЛАДКАМ
-# ==============================================================================
-tab_hub, tab_bio, tab_plan, tab_train, tab_lib, tab_goals, tab_sys = st.tabs([
-    "🔥 ГЛАВНЫЙ ХАБ",
-    "🛡️ БИО & ЭНЕРГИЯ",
-    "⚔️ ПЛАН & ПРИВЫЧКИ",
-    "🏋️ СПОРТ & РЕКОРДЫ",
-    "📚 БИБЛИОТЕКА (40)",
-    "🎯 ЦЕЛИ & 100 ТРОФЕЕВ",
-    "⚙️ СИСТЕМА & БЭКАП"
-])
-
-# ------------------------------------------------------------------------------
-# ВКЛАДКА 1: ГЛАВНЫЙ ХАБ
-# ------------------------------------------------------------------------------
-with tab_hub:
-    focus_txt = man_row[0] if man_row else "Держать высокий темп без суеты и перегрузок."
-    mode_txt = man_row[1] if man_row else "⚡ Сбалансированный режим"
-
-    st.markdown(f"""
-        <div class="manifesto-banner">
-            <div style="font-size:0.78rem; color:#8b949e; text-transform:uppercase; letter-spacing:0.06em;">
-                🎯 ГЛАВНЫЙ ФОКУС НА СЕГОДНЯ ({today_str})
-            </div>
-            <div style="margin: 4px 0 8px 0;">
-                <span class="pill-badge pill-accent" style="font-size:0.75rem;">{mode_txt}</span>
-            </div>
-            <div style="font-size:1.08rem; font-weight:700; color:#f0f6fc;">
-                «{focus_txt}»
-            </div>
-        </div>
     """, unsafe_allow_html=True)
 
-    str_s, agi_s, int_s, dsc_s = get_rpg_stats(uid)
+    st.markdown("##### 🎨 Тема оформления (Скины)")
+    skin_options = list(SKINS_CATALOG.keys())
+    selected_skin = st.selectbox(
+        "Визуальный профиль",
+        options=skin_options,
+        index=skin_options.index(skin_key),
+        format_func=lambda k: f"{SKINS_CATALOG[k]['avatar']} {SKINS_CATALOG[k]['name']} (LVL {SKINS_CATALOG[k]['min_lvl']}+)"
+    )
 
-    conn = DatabaseManager.get_conn()
-    c = conn.cursor()
-    c.execute("SELECT readiness_score FROM bio_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 1", (uid,))
-    r_last = c.fetchone()
-    readiness_val = r_last[0] if r_last else 72
+    if selected_skin != skin_key:
+        req_lvl = SKINS_CATALOG[selected_skin]["min_lvl"]
+        if user_lvl >= req_lvl or is_pro:
+            st.session_state.active_skin = selected_skin
+            st.rerun()
+        else:
+            st.warning(f"Для этой темы требуется Уровень {req_lvl} или статус PRO.")
 
-    c.execute("SELECT COUNT(*), COALESCE(SUM(is_done), 0) FROM tasks WHERE user_id = ? AND task_date = ?", (uid, today_str))
-    t_all, t_ok = c.fetchone()
-    day_pct = int(round((t_ok / t_all) * 100)) if t_all > 0 else 0
-    conn.close()
+    st.caption(SKINS_CATALOG[skin_key]["desc"])
+    st.divider()
 
-    col_hero, col_mid, col_cd = st.columns([1.05, 1.35, 1.1])
+    # Управление PRO-статусом
+    pro_toggle = st.toggle("💎 Активировать PRO-режим (+25% XP)", value=is_pro)
+    if pro_toggle != is_pro:
+        DatabaseManager.set_pro_status(user_id, pro_toggle)
+        st.session_state.user["is_pro"] = pro_toggle
+        st.rerun()
 
-    with col_hero:
+    # Экспорт отчета в один клик
+    report_text = CoreEngine.generate_weekly_report(username, is_pro, df_health, df_rpg)
+    st.download_button(
+        label="📥 Скачать сводку (TXT)",
+        data=report_text.encode("utf-8"),
+        file_name=f"neuroguard_report_{date.today()}.txt",
+        mime="text/plain",
+        use_container_width=True
+    )
+
+    if st.button("Выйти из профиля", use_container_width=True):
+        st.session_state.user = None
+        st.query_params.clear()
+        st.rerun()
+
+
+# ==============================================================================
+# 7. ГЛАВНАЯ НАВИГАЦИЯ ПО РАЗДЕЛАМ
+# ==============================================================================
+tabs = st.tabs([
+    "🧭 Дашборд",
+    "🛡️ Биометрия & ЦНС",
+    "⚔️ Продуктивность & RPG",
+    "🧘 Протоколы & Тренировки",
+    "🏆 Зал Славы & Цели",
+    "📚 База Знаний"
+])
+
+
+# ------------------------------------------------------------------------------
+# ВКЛАДКА 1: ДАШБОРД, УТРЕННЯЯ ДЕКЛАРАЦИЯ И ТРЕКЕР ПРИВЫЧЕК
+# ------------------------------------------------------------------------------
+with tabs[0]:
+    show_banner_if_exists("hero.jpg")
+
+    # Верхний ряд ключевых показателей
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    with m_col1:
         st.markdown(f"""
-            <div class="hero-card">
-                <div style="font-size:3.2rem; line-height:1.1; margin-bottom:8px;">{skin_cfg['avatar']}</div>
-                <span class="pill-badge pill-accent">{skin_cfg['role']}</span>
-                <h3 style="margin:10px 0 4px 0; font-weight:800;">{uname}</h3>
-                <div style="font-size:0.84rem; color:#8b949e; margin-bottom:10px;">{u_status} • LVL {lvl}</div>
-                <p style="font-size:0.8rem; color:#9ca3af; line-height:1.4; margin-bottom:14px;">{skin_cfg['desc']}</p>
-                <div class="stat-chip">💪 STR (Сила): {str_s}</div>
-                <div class="stat-chip">⚡ AGI (Темп): {agi_s}</div>
-                <div class="stat-chip">🧠 INT (Интеллект): {int_s}</div>
-                <div class="stat-chip">👑 DSC (Дисциплина): {dsc_s}</div>
+        <div class="metric-box">
+            <div class="metric-label">Готовность ЦНС</div>
+            <div class="metric-value">{last_readiness}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m_col2:
+        st.markdown(f"""
+        <div class="metric-box">
+            <div class="metric-label">Уровень и Опыт</div>
+            <div class="metric-value">LVL {user_lvl} <span style="font-size:0.9rem; color:#8b949e;">({total_xp} XP)</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m_col3:
+        st.markdown(f"""
+        <div class="metric-box">
+            <div class="metric-label">Достижения</div>
+            <div class="metric-value">{unlocked_count} / 100</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with m_col4:
+        st.markdown(f"""
+        <div class="metric-box" style="border-left-color: {burnout_info['color']};">
+            <div class="metric-label">Статус нагрузки</div>
+            <div class="metric-value" style="font-size: 1.05rem; color: {burnout_info['color']}; margin-top: 10px;">
+                {burnout_info['risk_level']}
             </div>
+        </div>
         """, unsafe_allow_html=True)
 
-    with col_mid:
-        st.markdown("#### 📊 Состояние и Прогресс")
-        m1, m2 = st.columns(2)
-        m1.metric("🔋 Готовность ЦНС", f"{readiness_val}%")
-        m2.metric("📅 Закрыто сегодня", f"{day_pct}%")
+    st.markdown(f"""
+    <div class="linear-card" style="border-left: 4px solid {burnout_info['color']};">
+        <div style="font-weight: 600; margin-bottom: 4px;">Аналитика состояния системы</div>
+        <div style="font-size: 0.9rem; color: #c9d1d9;">{burnout_info['message']}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        st.caption(f"Ресурс восстановления: {readiness_val}%")
-        st.progress(readiness_val / 100.0)
-        st.caption(f"Темп текущей недели: {w_pct}%")
-        st.progress(w_pct / 100.0)
+    col_d1, col_d2 = st.columns([1.15, 1])
 
-        st.markdown("#### 🎯 Активные ориентиры")
-        conn = DatabaseManager.get_conn()
-        df_g = pd.read_sql_query("SELECT title, current_val, target_val, unit FROM goals WHERE user_id = ? LIMIT 3", conn, params=(uid,))
-        conn.close()
-        for _, gr in df_g.iterrows():
-            gp = min(100, int(round((gr["current_val"] / max(1.0, gr["target_val"])) * 100)))
-            st.markdown(f"**{gr['title']}** — `{gp}%` ({gr['current_val']}/{gr['target_val']} {gr['unit']})")
-            st.progress(gp / 100.0)
+    # Утреннее окно декларации намерений
+    with col_d1:
+        st.markdown("##### 🎯 Декларация фокуса на день")
+        st.caption("Сформулируй одну главную задачу, которая сделает сегодняшний день результативным.")
 
-    with col_cd:
-        st.markdown("#### ⏳ Обратный отсчет до событий")
-        conn = DatabaseManager.get_conn()
-        df_cd = pd.read_sql_query("SELECT id, title, target_date, tag FROM countdowns WHERE user_id = ? ORDER BY target_date ASC", conn, params=(uid,))
-        conn.close()
-
-        if df_cd.empty:
-            st.caption("Нет активных таймеров (экзамены, турниры, релизы).")
-        else:
-            for _, cdr in df_cd.iterrows():
-                try:
-                    t_dt = datetime.strptime(cdr["target_date"], "%Y-%m-%d").date()
-                    rem_days = (t_dt - date.today()).days
-                except ValueError:
-                    rem_days = 0
-                badge_col = "#3fb950" if rem_days > 14 else ("#d29922" if rem_days >= 0 else "#ff7b72")
-                st.markdown(f"""
-                    <div class="bento-card" style="padding:12px 14px; margin-bottom:8px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:700; font-size:0.92rem;">{cdr['title']}</span>
-                            <span style="color:{badge_col}; font-weight:800; font-size:0.95rem;">{rem_days} дн.</span>
-                        </div>
-                        <div style="font-size:0.76rem; color:#8b949e; margin-top:4px;">
-                            🏷️ {cdr['tag']} • Дата: {cdr['target_date']}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-        st.markdown('<div class="bento-card" style="padding:14px;">', unsafe_allow_html=True)
-        st.markdown("**➕ Новый дедлайн или турнир**")
-        cd_title = st.text_input("Название события:", placeholder="ЕГЭ Проф. Математика / Турнир", key="hub_cd_title_in")
-        cd_date = st.date_input("Дата события:", value=date.today() + timedelta(days=30), key="hub_cd_date_in")
-        cd_tag = st.selectbox("Категория:", ["Экзамен / Олимпиада", "Соревнования / Пояс", "Релиз проекта", "Личная цель"], key="hub_cd_tag_in")
-        if st.button("Добавить таймер", use_container_width=True, key="hub_cd_add_btn"):
-            if cd_title.strip():
-                conn = DatabaseManager.get_conn()
-                c = conn.cursor()
-                c.execute(
-                    "INSERT INTO countdowns (user_id, title, target_date, tag) VALUES (?, ?, ?, ?)",
-                    (uid, cd_title.strip(), str(cd_date), cd_tag)
-                )
-                conn.commit()
-                conn.close()
+        intent_val = st.text_input(
+            "Ключевой приоритет дня",
+            value=st.session_state.morning_intent,
+            placeholder="Например: Решить 10 задач по информатике и провести силовую тренировку без перегруза ЦНС",
+            label_visibility="collapsed"
+        )
+        c_btn1, c_btn2 = st.columns(2)
+        with c_btn1:
+            if st.button("Зафиксировать вектор дня", type="primary", use_container_width=True):
+                st.session_state.morning_intent = intent_val
+                st.session_state.intent_locked = True
+        with c_btn2:
+            if st.button("Сбросить фокус", use_container_width=True):
+                st.session_state.morning_intent = ""
+                st.session_state.intent_locked = False
                 st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-# ==============================================================================
-# ЧАСТЬ 2 ИЗ 2: БИО & ЭНЕРГИЯ, ПЛАН & ПРИВЫЧКИ, СПОРТ, БИБЛИОТЕКА, ЦЕЛИ, СИСТЕМА
-# ==============================================================================
+
+        if st.session_state.intent_locked and st.session_state.morning_intent:
+            st.markdown(f"""
+            <div class="linear-card" style="border-color: {accent_col}; margin-top: 10px;">
+                <span class="pill-badge">АКТИВНЫЙ ФОКУС</span>
+                <div style="font-weight: 600; font-size: 1.02rem; margin-top: 8px;">{st.session_state.morning_intent}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Личные рекорды (PR)
+        st.markdown("##### ⚡ Личные нормативы и рекорды (PR)")
+        pr_cols = st.columns(2)
+        for idx, (pr_name, pr_val) in enumerate(st.session_state.pr_records.items()):
+            with pr_cols[idx % 2]:
+                new_pr = st.number_input(pr_name, value=float(pr_val), step=1.0, key=f"pr_{idx}")
+                st.session_state.pr_records[pr_name] = new_pr
+
+    # Чек-лист ежедневных привычек
+    with col_d2:
+        st.markdown("##### ✅ Ежедневный протокол дисциплины")
+        st.caption("Отмечай базовые привычки для поддержания ресурса ЦНС и фокуса.")
+
+        completed_habits = 0
+        for h_name in list(st.session_state.habits.keys()):
+            st.session_state.habits[h_name] = st.checkbox(h_name, value=st.session_state.habits[h_name])
+            if st.session_state.habits[h_name]:
+                completed_habits += 1
+
+        habit_pct = int((completed_habits / len(st.session_state.habits)) * 100)
+        st.progress(habit_pct / 100.0, text=f"Выполнение протокола привычек: {habit_pct}%")
+
 
 # ------------------------------------------------------------------------------
-# ВКЛАДКА 2: БИО & ЭНЕРГИЯ
+# ВКЛАДКА 2: БИОМЕТРИЯ, ЗРЕНИЕ И КОНТРОЛЬ ЦНС
 # ------------------------------------------------------------------------------
-with tab_bio:
-    st.markdown("#### 🛡️ Био-мониторинг, Готовность ЦНС и Дневник энергии")
-    b_col1, b_col2 = st.columns([1.25, 1])
+with tabs[1]:
+    show_banner_if_exists("bio.jpg")
+    st.markdown("#### 🛡️ Мониторинг биометрии, зрения и ресурса ЦНС")
+    st.caption("Записывай показатели сна и зрительной нагрузки для точного расчёта индекса готовности (Readiness).")
+
+    b_col1, b_col2 = st.columns([1.1, 1])
 
     with b_col1:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        bio_dt = st.date_input("Дата био-замера:", value=date.today(), key="bio_date_picker")
+        with st.form("bio_log_form"):
+            log_d = st.date_input("Дата записи", value=date.today())
+            c_sl1, c_sl2 = st.columns(2)
+            with c_sl1:
+                sleep_h = st.slider("Продолжительность сна (часов)", 3.0, 12.0, 8.0, 0.5)
+                study_h = st.slider("Экранное время / учеба и код (часов)", 0.0, 16.0, 5.0, 0.5)
+            with c_sl2:
+                sleep_q = st.slider("Качество сна (1–10)", 1, 10, 8)
+                eye_strain = st.slider("Усталость глаз / спазм (1–10)", 1, 10, 3)
 
-        conn = DatabaseManager.get_conn()
-        c = conn.cursor()
-        c.execute(
-            "SELECT sleep_hours, sleep_quality, screen_hours, eye_strain, workout_type, workout_rpe, heavy_load FROM bio_logs WHERE user_id = ? AND log_date = ?",
-            (uid, str(bio_dt))
-        )
-        b_row = c.fetchone()
-        conn.close()
+            train_type = st.selectbox(
+                "Основной тип физической нагрузки",
+                ["Отдых / Восстановление", "Калистеника / Турники (ОФП)", "Техника / Кобудо / Бой с тенью", "Силовая в зале", "Спарринги / Соревнования", "Кардио / Бег"]
+            )
+            train_int = st.slider("Интенсивность тренировки (0–10)", 0, 10, 5)
+            head_impact = st.checkbox("⚠️ Была ударная нагрузка на голову или жесткое натуживание")
 
-        sl_c1, sl_c2 = st.columns(2)
-        with sl_c1:
-            sleep_h = st.slider("Сон (часы)", 3.0, 12.0, float(b_row[0]) if b_row else 7.5, 0.5, key="bio_sleep_h")
-            screen_h = st.slider("Экран и учеба (часы)", 0.0, 16.0, float(b_row[2]) if b_row else 5.0, 0.5, key="bio_screen_h")
-            w_opts = ["Отдых", "Калистеника / ОФП", "Каратэ / Кобудо / Самбо", "Тяжелая атлетика / Зал", "Бег / Выносливость"]
-            w_idx = w_opts.index(b_row[4]) if (b_row and b_row[4] in w_opts) else 0
-            w_type = st.selectbox("Режим тренировки", w_opts, index=w_idx, key="bio_w_type")
+            submitted_bio = st.form_submit_button("Рассчитать индекс и сохранить в базу", type="primary", use_container_width=True)
 
-        with sl_c2:
-            sleep_q = st.slider("Качество сна (1-10)", 1, 10, int(b_row[1]) if b_row else 8, key="bio_sleep_q")
-            eye_s = st.slider("Усталость глаз (1-10)", 1, 10, int(b_row[3]) if b_row else 3, key="bio_eye_s")
-            w_rpe = st.slider("Тяжесть тренировки (0-10)", 0, 10, int(b_row[5]) if b_row else 0, key="bio_w_rpe")
+            if submitted_bio:
+                r_score = CoreEngine.calculate_readiness(
+                    sleep_h=sleep_h,
+                    sleep_q=sleep_q,
+                    study_h=study_h,
+                    eye_strain=eye_strain,
+                    train_int=train_int,
+                    head_impact=head_impact
+                )
+                temp_df = pd.DataFrame([{
+                    "training_type": train_type,
+                    "training_intensity": train_int,
+                    "head_impact": int(head_impact),
+                    "eye_strain": eye_strain
+                }])
+                advice_str = CoreEngine.generate_recovery_advice(temp_df)
 
-        heavy_chk = st.checkbox(
-            "Была ударная нагрузка или натуживание (Вальсальва / спарринги)",
-            value=bool(b_row[6]) if b_row else False,
-            key="bio_heavy_chk"
-        )
-
-        calc_r = calc_readiness(sleep_h, sleep_q, screen_h, eye_s, w_rpe, heavy_chk)
-
-        if st.button("⚡ Сохранить био-статус (+20 XP)", type="primary", use_container_width=True, key="bio_save_btn"):
-            conn = DatabaseManager.get_conn()
-            c = conn.cursor()
-            c.execute("""
-                INSERT OR REPLACE INTO bio_logs
-                (user_id, log_date, sleep_hours, sleep_quality, screen_hours, eye_strain, workout_type, workout_rpe, heavy_load, readiness_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (uid, str(bio_dt), sleep_h, sleep_q, screen_h, eye_s, w_type, w_rpe, 1 if heavy_chk else 0, calc_r))
-            conn.commit()
-            conn.close()
-            DatabaseManager.add_xp(uid, 20)
-            st.success("Био-статус сохранен!")
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+                DatabaseManager.save_health_log((
+                    user_id, str(log_d), sleep_h, sleep_q, study_h,
+                    eye_strain, train_type, train_int, int(head_impact),
+                    r_score, advice_str
+                ))
+                st.success(f"Запись сохранена! Индекс готовности ЦНС: {r_score}%")
+                st.rerun()
 
     with b_col2:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        st.metric("Готовность организма (Readiness)", f"{calc_r}%")
-        st.progress(calc_r / 100.0)
+        st.markdown("##### 🤖 Персональный протокол восстановления")
+        rec_advice = CoreEngine.generate_recovery_advice(df_health)
+        st.info(rec_advice)
 
-        if calc_r >= 70 and not heavy_chk and eye_s <= 5:
-            st.markdown("""
-                <div style="background:rgba(63,185,80,0.12); border:1px solid #3fb950; border-radius:10px; padding:12px; margin-top:10px;">
-                    <b style="color:#3fb950;">🟢 БАЛАНС И ТОНУС</b><br>
-                    <span style="font-size:0.86rem;">✅ Отличный баланс работы и восстановления. Риск выгорания минимален. Можно работать на пике.</span>
-                </div>
-            """, unsafe_allow_html=True)
-        elif calc_r >= 45:
-            st.markdown("""
-                <div style="background:rgba(210,153,34,0.12); border:1px solid #d29922; border-radius:10px; padding:12px; margin-top:10px;">
-                    <b style="color:#d29922;">🟡 УМЕРЕННОЕ НАПРЯЖЕНИЕ</b><br>
-                    <span style="font-size:0.86rem;">⚠️ Заметна нагрузка на глаза или ЦНС. Сделай упор на технику, избегай жесткого отказа и дай глазам отдых.</span>
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-                <div style="background:rgba(255,123,114,0.12); border:1px solid #ff7b72; border-radius:10px; padding:12px; margin-top:10px;">
-                    <b style="color:#ff7b72;">🔴 ТРЕБУЕТСЯ ВОССТАНОВЛЕНИЕ</b><br>
-                    <span style="font-size:0.86rem;">🛑 Высокое утомление ЦНС. Замени тяжелую силовую на разминку, прогулку и ранний сон.</span>
-                </div>
-            """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("#### ⚡ Дневник энергии и концентрации (Утро / День / Вечер)")
-    e_col1, e_col2 = st.columns([1, 1.35])
-
-    with e_col1:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        e_period = st.radio("Время замера:", ["🌅 Утро", "☀️ День", "🌙 Вечер"], horizontal=True, key="en_period_rad")
-        e_phys = st.slider("Физический тонус (1-10)", 1, 10, 8, key="en_phys_sl")
-        e_ment = st.slider("Ясность ума и фокус (1-10)", 1, 10, 8, key="en_ment_sl")
-        e_str = st.slider("Уровень стресса (1-10)", 1, 10, 3, key="en_str_sl")
-        e_note = st.text_input("Заметка по самочувствию:", placeholder="Например: После разминки отличный фокус", key="en_note_in")
-
-        if st.button("Сохранить замер энергии (+10 XP)", use_container_width=True, key="en_save_btn"):
-            conn = DatabaseManager.get_conn()
-            c = conn.cursor()
-            c.execute("""
-                INSERT INTO energy_logs (user_id, log_date, day_period, phys_tone, mental_focus, stress_lvl, note, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (uid, today_str, e_period, e_phys, e_ment, e_str, e_note.strip(), datetime.now().strftime("%H:%M")))
-            conn.commit()
-            conn.close()
-            DatabaseManager.add_xp(uid, 10)
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with e_col2:
-        conn = DatabaseManager.get_conn()
-        df_en = pd.read_sql_query(
-            "SELECT log_date, day_period, phys_tone, mental_focus, stress_lvl, note FROM energy_logs WHERE user_id = ? ORDER BY id DESC LIMIT 10",
-            conn, params=(uid,)
-        )
-        conn.close()
-        if df_en.empty:
-            st.info("Сделай первый замер энергии, чтобы отслеживать свои пики продуктивности в течение дня.")
-        else:
-            st.dataframe(df_en, use_container_width=True, hide_index=True)
+        if not df_health.empty:
+            st.markdown("##### 📊 Динамика готовности ЦНС и сна")
+            chart_df = df_health[["log_date", "readiness_score", "sleep_hours"]].sort_values("log_date")
+            st.dataframe(df_health[["log_date", "sleep_hours", "eye_strain", "training_type", "readiness_score"]].head(7), use_container_width=True, hide_index=True)
 
 
 # ------------------------------------------------------------------------------
-# ВКЛАДКА 3: ПЛАН & ПРИВЫЧКИ
+# ВКЛАДКА 3: ПРОДУКТИВНОСТЬ & RPG-СТАТИСТИКА
 # ------------------------------------------------------------------------------
-with tab_plan:
-    st.markdown("#### ⚔️ Тактический планировщик задач и Матрица привычек")
-    p_col1, p_col2 = st.columns([1.15, 1])
+with tabs[2]:
+    show_banner_if_exists("rpg.jpg")
+    st.markdown("#### ⚔️ Трекинг действий, учёбы и тренировочного объёма")
+    st.caption("Каждое выполненное действие конвертируется в очки характеристик (STR, AGI, INT, DSC) и опыт профиля.")
+
+    r_col1, r_col2 = st.columns([1.15, 1])
+
+    with r_col1:
+        with st.form("rpg_log_form"):
+            rpg_date = st.date_input("Дата отчёта", value=date.today(), key="rpg_d")
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                ex_reps = st.number_input("Силовые повторения (подтягивания, отжимания, зал)", 0, 2000, 100, step=10)
+                agi_drills = st.number_input("Раунды техники / боя с тенью / кобудо", 0, 50, 5, step=1)
+                pages = st.number_input("Прочитано страниц книг", 0, 500, 25, step=5)
+            with rc2:
+                tasks = st.number_input("Решено задач (ЕГЭ / Python / Алгоритмы)", 0, 200, 10, step=1)
+                topics = st.number_input("Разобрано новых тем / модулей", 0, 30, 2, step=1)
+                plan_pct = st.slider("Выполнение плана дня (%)", 0, 100, 90, step=5)
+
+            plan_text = st.text_input("Ключевые закрытые задачи дня", placeholder="Укажи главные выполненные блоки...")
+            daily_note = st.text_area("Заметка оператора (рефлексия и выводы)", placeholder="Что сработало отлично, а что нужно скорректировать завтра...")
+
+            sub_rpg = st.form_submit_button("Зафиксировать результат и начислить XP", type="primary", use_container_width=True)
+
+            if sub_rpg:
+                str_pts, agi_pts, int_pts, dsc_pts, total_act, xp_gain = CoreEngine.calculate_rpg_stats(
+                    ex_reps=ex_reps,
+                    agi_drills=agi_drills,
+                    pages=pages,
+                    topics=topics,
+                    tasks=tasks,
+                    plan_pct=plan_pct,
+                    is_pro=is_pro
+                )
+                rpg_msg = f"Начислено +{xp_gain} XP | STR +{str_pts}, AGI +{agi_pts}, INT +{int_pts}, DSC +{dsc_pts}"
+
+                DatabaseManager.save_rpg_log((
+                    user_id, str(rpg_date), ex_reps, agi_drills, pages,
+                    topics, tasks, plan_text, plan_pct, total_act,
+                    xp_gain, str_pts, agi_pts, int_pts, dsc_pts, rpg_msg, daily_note
+                ))
+                st.success(f"Отчёт сохранён! {rpg_msg}")
+                st.rerun()
+
+    with r_col2:
+        st.markdown("##### 📈 Суммарные характеристики оператора")
+        sum_str = int(df_rpg["str_pts"].sum()) if not df_rpg.empty else 0
+        sum_agi = int(df_rpg["agi_pts"].sum()) if not df_rpg.empty else 0
+        sum_int = int(df_rpg["int_pts"].sum()) if not df_rpg.empty else 0
+        sum_dsc = int(df_rpg["dsc_pts"].sum()) if not df_rpg.empty else 0
+
+        sc1, sc2 = st.columns(2)
+        sc1.metric("🦾 Сила (STR)", sum_str)
+        sc2.metric("⚡ Ловкость и Техника (AGI)", sum_agi)
+        sc1.metric("🧠 Интеллект и Код (INT)", sum_int)
+        sc2.metric("👑 Дисциплина (DSC)", sum_dsc)
+
+        if not df_rpg.empty:
+            st.markdown("##### 🗂️ История последних отчётов")
+            st.dataframe(
+                df_rpg[["log_date", "xp_earned", "exercises_reps", "tasks_solved", "plan_percent"]].head(7),
+                use_container_width=True,
+                hide_index=True
+            )
+
+
+# ------------------------------------------------------------------------------
+# ВКЛАДКА 4: ТРЕНИРОВОЧНЫЕ ПРОТОКОЛЫ, РЕЗЕТ ЦНС И ТАЙМЕР
+# ------------------------------------------------------------------------------
+with tabs[3]:
+    show_banner_if_exists("reset.jpg")
+    st.markdown("#### 🧘 Тренировочные протоколы и таймер рабочей сессии")
+
+    p_col1, p_col2 = st.columns([1.25, 1])
 
     with p_col1:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        st.markdown("##### 📋 Задачи на выбранный день")
-        t_date = st.date_input("Дата плана:", value=date.today(), key="plan_date_picker")
+        st.markdown("##### 🥋 Протоколы тренировок (из `library_data.py`)")
+        selected_proto = st.selectbox("Выбери тренировочный комплекс", list(WORKOUT_PROTOCOLS.keys()))
 
-        with st.container():
-            nt_title = st.text_input("Новая задача:", placeholder="Например: Решить 5 задач 1 части Проф. Математики", key="plan_new_title")
-            nt_c1, nt_c2 = st.columns(2)
-            with nt_c1:
-                nt_cat = st.selectbox("Сфера:", ["Интеллект / ЕГЭ", "Проекты / Фриланс", "Спорт / ОФП", "Личное / Режим"], key="plan_new_cat")
-            with nt_c2:
-                nt_prio = st.selectbox("Приоритет:", ["🔥 Высокий (40 XP)", "⚡ Средний (25 XP)", "🟢 Базовый (15 XP)"], key="plan_new_prio")
-
-            if st.button("➕ Добавить в план", type="primary", use_container_width=True, key="plan_add_btn"):
-                if nt_title.strip():
-                    xp_map = {"🔥 Высокий (40 XP)": 40, "⚡ Средний (25 XP)": 25, "🟢 Базовый (15 XP)": 15}
-                    conn = DatabaseManager.get_conn()
-                    c = conn.cursor()
-                    c.execute("""
-                        INSERT INTO tasks (user_id, task_date, title, category, priority, xp_reward, is_done)
-                        VALUES (?, ?, ?, ?, ?, ?, 0)
-                    """, (uid, str(t_date), nt_title.strip(), nt_cat, nt_prio, xp_map[nt_prio]))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
-
-        st.markdown("---")
-        conn = DatabaseManager.get_conn()
-        df_tasks = pd.read_sql_query(
-            "SELECT id, title, category, priority, xp_reward, is_done FROM tasks WHERE user_id = ? AND task_date = ? ORDER BY is_done ASC, id DESC",
-            conn, params=(uid, str(t_date))
-        )
-        conn.close()
-
-        if df_tasks.empty:
-            st.caption("На этот день задач пока нет. Добавь 3 главных шага!")
-        else:
-            for _, tr in df_tasks.iterrows():
-                tid = int(tr["id"])
-                done_bool = bool(tr["is_done"])
-                tc1, tc2 = st.columns([0.85, 0.15])
-                with tc1:
-                    chk = st.checkbox(
-                        f"**{tr['title']}**  •  `{tr['category']}` (+{tr['xp_reward']} XP)",
-                        value=done_bool,
-                        key=f"task_chk_{tid}"
-                    )
-                    if chk != done_bool:
-                        conn = DatabaseManager.get_conn()
-                        c = conn.cursor()
-                        c.execute("UPDATE tasks SET is_done = ? WHERE id = ?", (1 if chk else 0, tid))
-                        conn.commit()
-                        conn.close()
-                        DatabaseManager.add_xp(uid, int(tr["xp_reward"]) if chk else -int(tr["xp_reward"]))
-                        st.rerun()
-                with tc2:
-                    if st.button("🗑️", key=f"task_del_{tid}"):
-                        conn = DatabaseManager.get_conn()
-                        c = conn.cursor()
-                        c.execute("DELETE FROM tasks WHERE id = ?", (tid,))
-                        conn.commit()
-                        conn.close()
-                        st.rerun()
+        st.markdown('<div class="linear-card">', unsafe_allow_html=True)
+        st.markdown(f"**Комплекс: {selected_proto}**")
+        for idx, step_text in enumerate(WORKOUT_PROTOCOLS[selected_proto], start=1):
+            st.checkbox(f"{idx}. {step_text}", key=f"proto_{selected_proto}_{idx}")
         st.markdown('</div>', unsafe_allow_html=True)
 
     with p_col2:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        st.markdown(f"##### 🔁 Ежедневный чек-лист привычек ({today_str})")
+        st.markdown("##### ⏱️ Таймер интервальной работы / резета зрения")
+        st.caption("Используй для статики (удержание горизонта, вис), раундов боя с тенью или гимнастики для глаз.")
 
-        conn = DatabaseManager.get_conn()
-        df_hab = pd.read_sql_query("SELECT id, title, category, xp_reward FROM habits WHERE user_id = ?", conn, params=(uid,))
-        c = conn.cursor()
-        c.execute("SELECT habit_id FROM habit_logs WHERE user_id = ? AND log_date = ? AND status = 1", (uid, today_str))
-        done_h_ids = {r[0] for r in c.fetchall()}
-        conn.close()
+        timer_presets = {
+            "Статика / Удержание горизонта (15 сек)": 15,
+            "Релаксация глаз / Пальминг (60 сек)": 60,
+            "Вис на перекладине / Декомпрессия (90 сек)": 90,
+            "Раунд боя с тенью / Кобудо (180 сек)": 180
+        }
+        chosen_preset = st.selectbox("Режим таймера", list(timer_presets.keys()))
+        seconds_to_run = st.number_input("Длительность (секунд)", min_value=5, max_value=600, value=timer_presets[chosen_preset], step=5)
 
-        for _, hr in df_hab.iterrows():
-            hid = int(hr["id"])
-            h_checked = hid in done_h_ids
-            new_h_chk = st.checkbox(
-                f"{hr['title']} (`{hr['category']}` • +{hr['xp_reward']} XP)",
-                value=h_checked,
-                key=f"hab_chk_{hid}_{today_str}"
-            )
-            if new_h_chk != h_checked:
-                conn = DatabaseManager.get_conn()
-                c = conn.cursor()
-                if new_h_chk:
-                    c.execute(
-                        "INSERT OR REPLACE INTO habit_logs (user_id, habit_id, log_date, status) VALUES (?, ?, ?, 1)",
-                        (uid, hid, today_str)
-                    )
-                    DatabaseManager.add_xp(uid, int(hr["xp_reward"]))
-                else:
-                    c.execute(
-                        "DELETE FROM habit_logs WHERE user_id = ? AND habit_id = ? AND log_date = ?",
-                        (uid, hid, today_str)
-                    )
-                    DatabaseManager.add_xp(uid, -int(hr["xp_reward"]))
-                conn.commit()
-                conn.close()
-                st.rerun()
-
-        st.markdown("---")
-        nh_title = st.text_input("Добавить свою привычку:", placeholder="Например: Растяжка 10 минут", key="hab_new_title")
-        if st.button("Сохранить привычку", use_container_width=True, key="hab_add_btn"):
-            if nh_title.strip():
-                conn = DatabaseManager.get_conn()
-                c = conn.cursor()
-                c.execute(
-                    "INSERT INTO habits (user_id, title, category, xp_reward) VALUES (?, ?, 'Дисциплина', 25)",
-                    (uid, nh_title.strip())
-                )
-                conn.commit()
-                conn.close()
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        if st.button("▶️ Запустить таймер", type="primary", use_container_width=True):
+            progress_bar = st.progress(0.0)
+            status_txt = st.empty()
+            for rem in range(int(seconds_to_run), 0, -1):
+                pct = (seconds_to_run - rem) / float(seconds_to_run)
+                progress_bar.progress(pct)
+                status_txt.markdown(f"<h3 style='text-align:center; color:{accent_col};'>Осталось: {rem} сек.</h3>", unsafe_allow_html=True)
+                time.sleep(1)
+            progress_bar.progress(1.0)
+            status_txt.success("✅ Сессия успешно завершена!")
 
 
 # ------------------------------------------------------------------------------
-# ВКЛАДКА 4: СПОРТ & РЕКОРДЫ
+# ВКЛАДКА 5: ЗАЛ СЛАВЫ (100 ДОСТИЖЕНИЙ), ЦЕЛИ И ЛИДЕРБОРД
 # ------------------------------------------------------------------------------
-with tab_train:
-    st.markdown("#### 🏋️ Тренировочный хаб, Личные рекорды и Рацион")
-    sub_tr1, sub_tr2, sub_tr3 = st.tabs([
-        "📋 Программы и Таймеры",
-        "🏆 Журнал Рекордов (PR)",
-        "🥩 Трекер Питания и Воды"
+with tabs[4]:
+    show_banner_if_exists("trophies.jpg")
+
+    g_tab1, g_tab2, g_tab3 = st.tabs([
+        f"🏆 Зал Славы ({unlocked_count}/100)",
+        "🎯 Стратегические Цели",
+        "🌐 Таблица Лидеров"
     ])
 
-    with sub_tr1:
-        tr_c1, tr_c2 = st.columns([1.15, 1])
-        with tr_c1:
-            st.markdown("##### Рабочие протоколы тренировок")
-            w_choice = st.selectbox(
-                "Выбери направление:",
-                list(WORKOUT_PROTOCOLS.keys()),
-                key="workout_direction_select_main"
-            )
-            steps = WORKOUT_PROTOCOLS.get(w_choice, [])
-            st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-            for idx_s, st_text in enumerate(steps, 1):
-                st.markdown(f"**{idx_s}.** {st_text}")
-            st.markdown('</div>', unsafe_allow_html=True)
+    # Подвкладка 1: Все 100 достижений из achievements_data.py
+    with g_tab1:
+        st.markdown("##### 🏆 Полный каталог 100 достижений системы")
+        all_categories = sorted(list(set(item["category"] for item in synced_achievements)))
 
-        with tr_c2:
-            st.markdown("##### ⏱️ Спортивные таймеры")
-            tm_display = st.empty()
-            tm_bar = st.progress(0)
+        f_col1, f_col2 = st.columns([1.3, 1])
+        with f_col1:
+            selected_cat = st.selectbox("Фильтр по категории", ["Все категории"] + all_categories)
+        with f_col2:
+            status_filter = st.radio("Статус", ["Все", "Разблокированные", "Закрытые"], horizontal=True)
 
-            tc_1, tc_2, tc_3 = st.columns(3)
-            with tc_1:
-                if st.button("🔥 Табата 20/10", use_container_width=True, type="primary", key="timer_tabata_btn_main"):
-                    for s in range(20, 0, -1):
-                        tm_display.markdown(f'<div class="breath-box" style="border-color:#ff7b72;">Работа: <b>{s} с</b></div>', unsafe_allow_html=True)
-                        tm_bar.progress((20 - s) / 20.0)
-                        time.sleep(1)
-                    for s in range(10, 0, -1):
-                        tm_display.markdown(f'<div class="breath-box" style="border-color:#3fb950;">Пауза: <b>{s} с</b></div>', unsafe_allow_html=True)
-                        tm_bar.progress((10 - s) / 10.0)
-                        time.sleep(1)
-                    tm_display.markdown('<div class="breath-box" style="border-color:#3fb950;">✅ Готово!</div>', unsafe_allow_html=True)
+        filtered_list = synced_achievements
+        if selected_cat != "Все категории":
+            filtered_list = [a for a in filtered_list if a["category"] == selected_cat]
+        if status_filter == "Разблокированные":
+            filtered_list = [a for a in filtered_list if a["unlocked"]]
+        elif status_filter == "Закрытые":
+            filtered_list = [a for a in filtered_list if not a["unlocked"]]
 
-            with tc_2:
-                if st.button("🥋 Раунд (60с)", use_container_width=True, key="timer_round_btn_main"):
-                    for s in range(60, 0, -1):
-                        tm_display.markdown(f'<div class="breath-box" style="border-color:#d29922;">Раунд: <b>{s} с</b></div>', unsafe_allow_html=True)
-                        tm_bar.progress((60 - s) / 60.0)
-                        time.sleep(1)
-                    tm_display.markdown('<div class="breath-box" style="border-color:#3fb950;">🔔 Гонг!</div>', unsafe_allow_html=True)
+        st.caption(f"Отображено трофеев: {len(filtered_list)}")
 
-            with tc_3:
-                if st.button("💧 Отдых (45с)", use_container_width=True, key="timer_rest_btn_main"):
-                    for s in range(45, 0, -1):
-                        tm_display.markdown(f'<div class="breath-box" style="border-color:{accent_col};">Отдых: <b>{s} с</b></div>', unsafe_allow_html=True)
-                        tm_bar.progress((45 - s) / 45.0)
-                        time.sleep(1)
-                    tm_display.markdown('<div class="breath-box" style="border-color:#3fb950;">⚡ Вперед!</div>', unsafe_allow_html=True)
+        ach_cols = st.columns(2)
+        for idx, ach in enumerate(filtered_list):
+            is_unl = ach["unlocked"]
+            card_cls = "trophy-card trophy-unlocked" if is_unl else "trophy-card"
+            icon_disp = ach["icon"] if is_unl else "🔒"
+            date_badge = f"Открыто: {ach['date']}" if is_unl else "В процессе"
 
-    with sub_tr2:
-        pr_c1, pr_c2 = st.columns([1, 1.3])
-        with pr_c1:
-            st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-            st.markdown("##### Зафиксировать личный максимум")
-            pr_cat = st.selectbox(
-                "Сфера рекорда:",
-                ["Силовая база", "Калистеника", "Единоборства", "Бег / Выносливость", "Учеба и Код"],
-                key="pr_cat_select_unique"
-            )
-            pr_title = st.text_input("Дисциплина:", placeholder="Жим лежа / Подтягивания / Горизонт", key="pr_title_in_unique")
-            pr_val = st.number_input("Значение:", min_value=0.0, max_value=50000.0, value=100.0, step=1.0, key="pr_val_in_unique")
-            pr_unit = st.text_input("Единицы измерения:", value="кг", key="pr_unit_in_unique")
-            pr_dt = st.date_input("Дата рекорда:", value=date.today(), key="pr_dt_in_unique")
-
-            if st.button("🏆 Сохранить PR (+50 XP)", use_container_width=True, type="primary", key="pr_save_btn_unique"):
-                if pr_title.strip():
-                    conn = DatabaseManager.get_conn()
-                    c = conn.cursor()
-                    c.execute(
-                        "INSERT INTO pr_records (user_id, category, record_title, record_value, record_unit, achieved_date) VALUES (?, ?, ?, ?, ?, ?)",
-                        (uid, pr_cat, pr_title.strip(), pr_val, pr_unit.strip(), str(pr_dt))
-                    )
-                    conn.commit()
-                    conn.close()
-                    DatabaseManager.add_xp(uid, 50)
-                    st.success("Рекорд сохранен!")
-                    st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with pr_c2:
-            st.markdown("##### История личных рекордов")
-            conn = DatabaseManager.get_conn()
-            df_pr = pd.read_sql_query(
-                "SELECT category, record_title, record_value, record_unit, achieved_date FROM pr_records WHERE user_id = ? ORDER BY id DESC",
-                conn, params=(uid,)
-            )
-            conn.close()
-            if not df_pr.empty:
-                for _, r in df_pr.iterrows():
-                    st.markdown(f"""
-                        <div class="bento-card" style="padding:12px 16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <div style="font-weight:700;">🏅 {r['record_title']}</div>
-                                <div style="font-size:0.78rem; color:#8b949e;">{r['category']} • {r['achieved_date']}</div>
+            with ach_cols[idx % 2]:
+                st.markdown(f"""
+                <div class="{card_cls}">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700; font-size:0.95rem;">
+                                {icon_disp} {ach['title']}
                             </div>
-                            <div style="font-size:1.15rem; font-weight:800; color:{accent_col};">
-                                {r['record_value']} {r['record_unit']}
+                            <div style="font-size:0.78rem; color:#8b949e; margin-top:4px;">
+                                {ach['desc']}
                             </div>
                         </div>
-                    """, unsafe_allow_html=True)
-
-    with sub_tr3:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        st.markdown(f"##### 🥩 Дневной баланс БЖУ и Гидратации ({today_str})")
-        conn = DatabaseManager.get_conn()
-        c = conn.cursor()
-        c.execute("SELECT calories, protein, fats, carbs, water_ml FROM nutrition_logs WHERE user_id = ? AND log_date = ?", (uid, today_str))
-        nut_row = c.fetchone()
-        conn.close()
-
-        nc1, nc2, nc3, nc4, nc5 = st.columns(5)
-        with nc1:
-            cal_in = st.number_input("Калории (ккал)", 0, 10000, int(nut_row[0]) if nut_row else 2600, 50, key="nut_cal_in")
-        with nc2:
-            prot_in = st.number_input("Белки (г)", 0, 500, int(nut_row[1]) if nut_row else 150, 5, key="nut_prot_in")
-        with nc3:
-            fat_in = st.number_input("Жиры (г)", 0, 500, int(nut_row[2]) if nut_row else 80, 5, key="nut_fat_in")
-        with nc4:
-            carb_in = st.number_input("Углеводы (г)", 0, 1000, int(nut_row[3]) if nut_row else 300, 10, key="nut_carb_in")
-        with nc5:
-            wat_in = st.number_input("Вода (мл)", 0, 6000, int(nut_row[4]) if nut_row else 2200, 250, key="nut_wat_in")
-
-        if st.button("Сохранить рацион дня (+15 XP)", type="primary", key="nut_save_btn"):
-            conn = DatabaseManager.get_conn()
-            c = conn.cursor()
-            c.execute("""
-                INSERT OR REPLACE INTO nutrition_logs (user_id, log_date, calories, protein, fats, carbs, water_ml)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (uid, today_str, cal_in, prot_in, fat_in, carb_in, wat_in))
-            conn.commit()
-            conn.close()
-            DatabaseManager.add_xp(uid, 15)
-            st.success("Данные по питанию и воде обновлены!")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ------------------------------------------------------------------------------
-# ВКЛАДКА 5: БИБЛИОТЕКА (40 КНИГ)
-# ------------------------------------------------------------------------------
-with tab_lib:
-    st.markdown("#### 📚 База Знаний (40 фундаментальных книг) и Конспекты")
-    lib_cats = list(LIBRARY_CATALOG.keys())
-    picked_lib_cat = st.selectbox("Раздел библиотеки:", lib_cats, key="lib_category_selector")
-
-    books_list = LIBRARY_CATALOG.get(picked_lib_cat, [])
-    conn = DatabaseManager.get_conn()
-    c = conn.cursor()
-    c.execute("SELECT book_title, status, notes, rating FROM book_progress WHERE user_id = ?", (uid,))
-    saved_books = {r[0]: (r[1], r[2], r[3]) for r in c.fetchall()}
-    conn.close()
-
-    for idx_b, b_item in enumerate(books_list):
-        b_title = b_item["title"]
-        b_author = b_item["author"]
-        b_desc = b_item["desc"]
-        def_status = b_item.get("status", "В планах")
-
-        cur_st, cur_note, cur_rat = saved_books.get(b_title, (def_status, "", 5))
-        st_color = "#3fb950" if cur_st == "Прочитано" else ("#d29922" if cur_st == "В процессе" else "#8b949e")
-
-        st.markdown(f"""
-            <div class="bento-card" style="margin-bottom:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <span style="font-weight:700; font-size:1.02rem;">📖 {b_title}</span>
-                        <span style="color:#8b949e; font-size:0.86rem;"> — {b_author}</span>
+                        <span class="pill-badge">{ach['code']}</span>
                     </div>
-                    <span class="pill-badge" style="color:{st_color}; border-color:{st_color};">{cur_st}</span>
+                    <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.72rem; color:#8b949e;">
+                        <span>{ach['category']}</span>
+                        <span style="color:{accent_col if is_unl else '#8b949e'}; font-weight:600;">{date_badge}</span>
+                    </div>
                 </div>
-                <div style="font-size:0.85rem; color:#c9d1d9; margin-top:6px;">{b_desc}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        bc1, bc2, bc3 = st.columns([1, 2, 0.7])
-        st_opts = ["В планах", "В процессе", "Прочитано"]
-        with bc1:
-            new_st = st.selectbox(
-                "Статус:",
-                st_opts,
-                index=st_opts.index(cur_st) if cur_st in st_opts else 0,
-                key=f"lib_st_{picked_lib_cat}_{idx_b}"
-            )
-        with bc2:
-            new_nt = st.text_input(
-                "Главный инсайт / заметка:",
-                value=cur_note,
-                placeholder="Что внедряю в жизнь из этой книги...",
-                key=f"lib_nt_{picked_lib_cat}_{idx_b}"
-            )
-        with bc3:
-            st.write("")
-            if st.button("💾 Сохранить", use_container_width=True, key=f"lib_sv_{picked_lib_cat}_{idx_b}"):
-                conn = DatabaseManager.get_conn()
-                c = conn.cursor()
-                c.execute("""
-                    INSERT OR REPLACE INTO book_progress (user_id, book_title, status, notes, rating)
-                    VALUES (?, ?, ?, ?, 5)
-                """, (uid, b_title, new_st, new_nt.strip()))
-                conn.commit()
-                conn.close()
-                if new_st == "Прочитано" and cur_st != "Прочитано":
-                    DatabaseManager.add_xp(uid, 60)
-                st.rerun()
-
-
-# ------------------------------------------------------------------------------
-# ВКЛАДКА 6: ЦЕЛИ & 100 ТРОФЕЕВ
-# ------------------------------------------------------------------------------
-with tab_goals:
-    st.markdown("#### 🎯 Стратегические Цели и Зал Славы (100 Трофеев)")
-    g_tab1, g_tab2 = st.tabs(["🎯 Управление целями", "🏆 Матрица 100 Трофеев"])
-
-    with g_tab1:
-        conn = DatabaseManager.get_conn()
-        df_all_g = pd.read_sql_query("SELECT id, title, category, current_val, target_val, unit FROM goals WHERE user_id = ?", conn, params=(uid,))
-        conn.close()
-
-        for _, gr in df_all_g.iterrows():
-            gid = int(gr["id"])
-            gp = min(100, int(round((gr["current_val"] / max(1.0, gr["target_val"])) * 100)))
-            st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-            st.markdown(f"**{gr['title']}** (`{gr['category']}`) — **{gp}%**")
-            st.progress(gp / 100.0)
-            gc1, gc2, gc3 = st.columns([1.2, 0.8, 0.5])
-            with gc1:
-                new_gval = st.number_input(
-                    f"Текущий прогресс ({gr['unit']}):",
-                    min_value=0.0,
-                    max_value=1000000.0,
-                    value=float(gr["current_val"]),
-                    step=1.0,
-                    key=f"goal_val_in_{gid}"
-                )
-            with gc2:
-                st.write("")
-                if st.button("Обновить прогресс", use_container_width=True, key=f"goal_upd_btn_{gid}"):
-                    conn = DatabaseManager.get_conn()
-                    c = conn.cursor()
-                    c.execute("UPDATE goals SET current_val = ? WHERE id = ?", (new_gval, gid))
-                    conn.commit()
-                    conn.close()
-                    DatabaseManager.add_xp(uid, 15)
-                    st.rerun()
-            with gc3:
-                st.write("")
-                if st.button("Удалить", use_container_width=True, key=f"goal_del_btn_{gid}"):
-                    conn = DatabaseManager.get_conn()
-                    c = conn.cursor()
-                    c.execute("DELETE FROM goals WHERE id = ?", (gid,))
-                    conn.commit()
-                    conn.close()
-                    st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        st.markdown("##### ➕ Поставить новую цель")
-        ng_t = st.text_input("Название цели:", placeholder="Например: Собрать портфолио из 20 дизайн-кейсов", key="ng_title_in")
-        ng_c1, ng_c2, ng_c3 = st.columns(3)
-        with ng_c1:
-            ng_cat = st.selectbox("Категория:", ["Спорт", "Интеллект", "Проекты", "Дисциплина"], key="ng_cat_in")
-        with ng_c2:
-            ng_tar = st.number_input("Целевое число:", min_value=1.0, max_value=1000000.0, value=100.0, key="ng_tar_in")
-        with ng_c3:
-            ng_un = st.text_input("Единица:", value="кейсов", key="ng_unit_in")
-
-        if st.button("Создать цель", type="primary", key="ng_create_btn"):
-            if ng_t.strip():
-                conn = DatabaseManager.get_conn()
-                c = conn.cursor()
-                c.execute(
-                    "INSERT INTO goals (user_id, title, category, current_val, target_val, unit) VALUES (?, ?, ?, 0, ?, ?)",
-                    (uid, ng_t.strip(), ng_cat, ng_tar, ng_un.strip())
-                )
-                conn.commit()
-                conn.close()
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with g_tab2:
-        st.caption("Трофеи открываются автоматически по мере роста твоего XP, уровня, закрытых задач и рекордов.")
-        t_cols = st.columns(4)
-        for t_idx in range(1, 101):
-            req_xp = t_idx * 150
-            unlocked = user_xp >= req_xp
-            col_box = t_cols[(t_idx - 1) % 4]
-            with col_box:
-                cls_name = "trophy-card trophy-unlocked" if unlocked else "trophy-card"
-                icon_t = "🏆" if unlocked else "🔒"
-                st.markdown(f"""
-                    <div class="{cls_name}">
-                        <b>{icon_t} Трофей #{t_idx}</b><br>
-                        <span style="color:#8b949e; font-size:0.76rem;">Порог: {req_xp} XP</span>
-                    </div>
                 """, unsafe_allow_html=True)
 
+    # Подвкладка 2: Цели на месяц и год из database.py
+    with g_tab2:
+        st.markdown("##### 🎯 Цели на месяц и год")
+        df_goals = DatabaseManager.get_goals(user_id)
 
-# ------------------------------------------------------------------------------
-# ВКЛАДКА 7: СИСТЕМА, DEEP WORK & БЭКАП
-# ------------------------------------------------------------------------------
-with tab_sys:
-    st.markdown("#### ⚙️ Deep Work Таймер, Дыхательный Резет и Резервное копирование")
-    s_col1, s_col2 = st.columns(2)
+        if not df_goals.empty:
+            for _, row in df_goals.iterrows():
+                g_id = int(row["id"])
+                g_period = "📅 Месяц" if row["goal_period"] == "month" else "🚀 Год"
+                g_title = row["goal_title"]
+                g_target = float(row["target_value"])
+                g_curr = float(row["current_value"])
+                g_unit = row["unit"]
+                pct = min(1.0, max(0.0, g_curr / g_target)) if g_target > 0 else 0.0
 
-    with s_col1:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        st.markdown("##### 🧘 Таймер Глубокого Фокуса (Deep Work)")
-        dw_topic = st.text_input("Над чем работаем сейчас:", value="Подготовка к ЕГЭ / Python / Дизайн", key="dw_topic_in")
-        dw_mins = st.selectbox("Длительность сессии (мин):", [15, 25, 45, 60, 90], index=1, key="dw_mins_sel")
+                st.markdown(f"**{g_period}: {g_title}** ({g_curr:.0f} / {g_target:.0f} {g_unit})")
+                st.progress(pct)
 
-        if st.button("🚀 Завершить и засчитать фокус-сессию", type="primary", use_container_width=True, key="dw_finish_btn"):
-            earned = int(dw_mins * 2)
-            conn = DatabaseManager.get_conn()
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO focus_sessions (user_id, session_date, minutes, topic, xp_earned) VALUES (?, ?, ?, ?, ?)",
-                (uid, today_str, dw_mins, dw_topic.strip(), earned)
-            )
-            conn.commit()
-            conn.close()
-            DatabaseManager.add_xp(uid, earned)
-            st.success(f"Сессия {dw_mins} мин засчитана! Начислено +{earned} XP.")
-            st.rerun()
-
-        st.markdown("---")
-        st.markdown("##### 🌬️ Нейро-Резет: Квадратное дыхание (4-4-4-4)")
-        br_spot = st.empty()
-        if st.button("Запустить 1 цикл дыхания (16 сек)", use_container_width=True, key="sys_breath_btn"):
-            phases = [
-                ("Вдох носом (4 сек)...", "#58a6ff"),
-                ("Задержка дыхания (4 сек)...", "#d29922"),
-                ("Плавный выдох (4 сек)...", "#3fb950"),
-                ("Пауза на выдохе (4 сек)...", "#a371f7")
-            ]
-            for ph_text, ph_col in phases:
-                for sec in range(4, 0, -1):
-                    br_spot.markdown(
-                        f'<div class="breath-box" style="border-color:{ph_col};">{ph_text} <b>{sec} с</b></div>',
-                        unsafe_allow_html=True
+                gc1, gc2 = st.columns([3, 1])
+                with gc1:
+                    new_val = st.number_input(
+                        f"Обновить прогресс ({g_title})",
+                        min_value=0.0,
+                        max_value=g_target * 2.0,
+                        value=g_curr,
+                        step=1.0,
+                        key=f"goal_in_{g_id}",
+                        label_visibility="collapsed"
                     )
-                    time.sleep(1)
-            br_spot.markdown('<div class="breath-box" style="border-color:#3fb950;">✨ Пульс выровнен, фокус восстановлен!</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+                with gc2:
+                    if st.button("Сохранить", key=f"goal_btn_{g_id}", use_container_width=True):
+                        DatabaseManager.update_goal_progress(g_id, new_val)
+                        st.rerun()
+                st.divider()
 
-    with s_col2:
-        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
-        st.markdown("##### 💾 Экспорт и Импорт базы данных (JSON Backup)")
-        conn = DatabaseManager.get_conn()
-        backup_payload = {
-            "exported_at": str(datetime.now()),
-            "username": uname,
-            "xp": user_xp,
-            "tasks": pd.read_sql_query("SELECT * FROM tasks WHERE user_id = ?", conn, params=(uid,)).to_dict(orient="records"),
-            "pr_records": pd.read_sql_query("SELECT * FROM pr_records WHERE user_id = ?", conn, params=(uid,)).to_dict(orient="records"),
-            "goals": pd.read_sql_query("SELECT * FROM goals WHERE user_id = ?", conn, params=(uid,)).to_dict(orient="records"),
-            "bio_logs": pd.read_sql_query("SELECT * FROM bio_logs WHERE user_id = ?", conn, params=(uid,)).to_dict(orient="records")
-        }
-        conn.close()
+    # Подвкладка 3: Таблица лидеров из database.py
+    with g_tab3:
+        st.markdown("##### 🌐 Рейтинг операторов NeuroGuard")
+        df_lb = DatabaseManager.get_leaderboard()
+        st.dataframe(df_lb, use_container_width=True, hide_index=True)
 
-        json_str = json.dumps(backup_payload, ensure_ascii=False, indent=2)
-        st.download_button(
-            label="📥 Скачать полный JSON-бэкап профиля",
-            data=json_str,
-            file_name=f"neuroguard_backup_{uname}_{today_str}.json",
-            mime="application/json",
-            use_container_width=True,
-            key="sys_download_backup_btn"
-        )
 
-        st.markdown("---")
-        st.caption("Статистика текущих записей в хранилище SQLite:")
-        st.json({
-            "Оператор": uname,
-            "Уровень": lvl,
-            "Всего XP": user_xp,
-            "Задач в базе": len(backup_payload["tasks"]),
-            "Личных рекордов (PR)": len(backup_payload["pr_records"]),
-            "Активных целей": len(backup_payload["goals"]),
-            "Био-замеров": len(backup_payload["bio_logs"])
-        })
-        st.markdown('</div>', unsafe_allow_html=True)
+# ------------------------------------------------------------------------------
+# ВКЛАДКА 6: БАЗА ЗНАНИЙ И БИБЛИОТЕКА (40 КНИГ ИЗ LIBRARY_DATA.PY)
+# ------------------------------------------------------------------------------
+with tabs[5]:
+    st.markdown("#### 📚 Интеллектуальная база знаний (40 фундаментальных книг)")
+    st.caption("Структурированный каталог литературы по мышлению, биохакингу ЦНС, алгоритмам и спортивной дисциплине.")
 
+    lib_col1, lib_col2 = st.columns([1.2, 1])
+    with lib_col1:
+        lib_section = st.selectbox("Раздел библиотеки", ["Все разделы"] + list(LIBRARY_CATALOG.keys()))
+    with lib_col2:
+        status_book_filter = st.selectbox("Статус чтения", ["Все статусы", "Прочитано", "В процессе", "В планах"])
+
+    books_to_show = []
+    for sec_name, book_list in LIBRARY_CATALOG.items():
+        if lib_section != "Все разделы" and sec_name != lib_section:
+            continue
+        for b in book_list:
+            if status_book_filter != "Все статусы" and b["status"] != status_book_filter:
+                continue
+            b_copy = b.copy()
+            b_copy["section"] = sec_name
+            books_to_show.append(b_copy)
+
+    st.caption(f"Найдено книг в каталоге: {len(books_to_show)}")
+
+    b_cols = st.columns(2)
+    for idx, book in enumerate(books_to_show):
+        status_color = "#3fb950" if book["status"] == "Прочитано" else ("#58a6ff" if book["status"] == "В процессе" else "#8b949e")
+        with b_cols[idx % 2]:
+            st.markdown(f"""
+            <div class="linear-card">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <div style="font-weight:700; font-size:0.98rem;">📖 {book['title']}</div>
+                        <div style="font-size:0.8rem; color:#8b949e; margin-top:2px;">Автор: <b>{book['author']}</b> • {book['section']}</div>
+                    </div>
+                    <span class="pill-badge" style="color:{status_color}; border-color:{status_color};">{book['status']}</span>
+                </div>
+                <div style="font-size:0.84rem; color:#c9d1d9; margin-top:10px; line-height:1.45;">
+                    {book['desc']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
