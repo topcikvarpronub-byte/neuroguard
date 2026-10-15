@@ -1128,8 +1128,9 @@ elif st.session_state.page == "dashboard":
                 tm_display = st.empty()
                 tm_bar = st.progress(0)
 
+                tc_1, tc_2, tc_3 = st.columns(3)
                 with tc_1:
-                    if st.button("🔥 Табата 20/10", use_container_width=True, type="primary"):
+                    if st.button("🔥 Табата 20/10", use_container_width=True, type="primary", key="timer_tabata_btn"):
                         for s in range(20, 0, -1):
                             tm_display.markdown(f'<div class="breath-box" style="border-color:#ff7b72;">Работа: <b>{s} с</b></div>', unsafe_allow_html=True)
                             tm_bar.progress((20 - s) / 20.0)
@@ -1141,7 +1142,7 @@ elif st.session_state.page == "dashboard":
                         tm_display.markdown('<div class="breath-box" style="border-color:#3fb950;">✅ Готово!</div>', unsafe_allow_html=True)
 
                 with tc_2:
-                    if st.button("🥋 Раунд (60с)", use_container_width=True):
+                    if st.button("🥋 Раунд (60с)", use_container_width=True, key="timer_round_btn"):
                         for s in range(60, 0, -1):
                             tm_display.markdown(f'<div class="breath-box" style="border-color:#d29922;">Раунд: <b>{s} с</b></div>', unsafe_allow_html=True)
                             tm_bar.progress((60 - s) / 60.0)
@@ -1149,12 +1150,13 @@ elif st.session_state.page == "dashboard":
                         tm_display.markdown('<div class="breath-box" style="border-color:#3fb950;">🔔 Гонг!</div>', unsafe_allow_html=True)
 
                 with tc_3:
-                    if st.button("💧 Отдых (45с)", use_container_width=True):
+                    if st.button("💧 Отдых (45с)", use_container_width=True, key="timer_rest_btn"):
                         for s in range(45, 0, -1):
                             tm_display.markdown(f'<div class="breath-box" style="border-color:{accent_col};">Отдых: <b>{s} с</b></div>', unsafe_allow_html=True)
                             tm_bar.progress((45 - s) / 45.0)
                             time.sleep(1)
                         tm_display.markdown('<div class="breath-box" style="border-color:#3fb950;">⚡ Поход!</div>', unsafe_allow_html=True)
+
 
         with sub_tr2:
             pr_c1, pr_c2 = st.columns([1, 1.3])
