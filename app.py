@@ -264,20 +264,26 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
-    @classmethod
+        @classmethod
     def add_xp(cls, user_id: int, base_xp: int):
         conn = cls.get_conn()
         c = conn.cursor()
-        c.execute("SELECT xp, pro_mode FROM users WHERE id = ?", (user_id,))
-        row = c.fetchone()
-        if row:
-            curr_xp, pro = row
-            mult = 1.25 if pro else 1.0
-            gain = int(round(base_xp * mult))
-            new_xp = max(0, curr_xp + gain)
-            c.execute("UPDATE users SET xp = ? WHERE id = ?", (new_xp, user_id))
-            conn.commit()
-        conn.close()
+        try:
+            c.execute("SELECT xp, pro_mode FROM users WHERE id = ?", (user_id,))
+            row = c.fetchone()
+            if row:
+                curr_xp = int(row[0]) if row[0] is not None else 0
+                pro = bool(row[1]) if row[1] is not None else True
+                mult = 1.25 if pro else 1.0
+                gain = int(round(base_xp * mult))
+                new_xp = max(0, curr_xp + gain)
+                c.execute("UPDATE users SET xp = ? WHERE id = ?", (new_xp, user_id))
+                conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
 
 
 DatabaseManager.init_db()
