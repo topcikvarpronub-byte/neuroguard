@@ -21,9 +21,9 @@ if "page" not in st.session_state:
 if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
-# --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ (MODERN SAAS BENTO STYLE) ---
-bg_main = "#07090e"
-border_col = "rgba(255, 255, 255, 0.08)"
+# --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ (TRUE GLASSMORPHISM BENTO) ---
+bg_main = "#05070b"
+border_col = "rgba(255, 255, 255, 0.1)"
 text_col = "#f0f6fc"
 
 st.markdown(f"""
@@ -31,12 +31,12 @@ st.markdown(f"""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
 
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
-        background: radial-gradient(circle at 50% -20%, #1a2b4c 0%, {bg_main} 60%) !important;
+        background: radial-gradient(circle at 50% -10%, #111b2e 0%, {bg_main} 65%) !important;
         color: {text_col} !important;
         font-family: 'Inter', sans-serif !important;
     }}
     [data-testid="stSidebar"] {{
-        background-color: #0b101b !important;
+        background-color: #080c14 !important;
         border-right: 1px solid {border_col} !important;
     }}
     h1, h2, h3, h4, p, span, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {{
@@ -47,9 +47,9 @@ st.markdown(f"""
         font-family: 'JetBrains Mono', monospace !important;
     }}
     div[data-baseweb="select"] > div, input, textarea {{
-        background-color: #131d31 !important;
+        background-color: #0f1728 !important;
         color: {text_col} !important;
-        border: 1px solid rgba(88, 166, 255, 0.25) !important;
+        border: 1px solid rgba(88, 166, 255, 0.3) !important;
         border-radius: 12px !important;
     }}
     .hud-row {{
@@ -59,9 +59,9 @@ st.markdown(f"""
         margin-bottom: 12px;
     }}
     .hud-pill {{
-        background: rgba(19, 29, 49, 0.85);
+        background: rgba(15, 23, 40, 0.85);
         backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 30px;
         padding: 6px 16px;
         font-size: 13px;
@@ -69,15 +69,15 @@ st.markdown(f"""
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }}
     .pro-pill {{
-        border: 1px solid rgba(241,224,90,0.4) !important;
-        background: linear-gradient(135deg, rgba(241,224,90,0.2), rgba(19,29,49,0.95)) !important;
+        border: 1px solid rgba(241,224,90,0.5) !important;
+        background: linear-gradient(135deg, rgba(241,224,90,0.25), rgba(15,23,40,0.95)) !important;
         color: #f1e05a !important;
     }}
     .ach-card {{
-        background: rgba(19, 29, 49, 0.7);
+        background: rgba(15, 23, 40, 0.75);
         backdrop-filter: blur(12px);
         border-radius: 16px;
         padding: 16px;
@@ -91,7 +91,7 @@ st.markdown(f"""
     }}
     .ach-unlocked {{
         border: 1px solid rgba(63, 185, 80, 0.6) !important;
-        background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(19,29,49,0.9)) !important;
+        background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(15,23,40,0.9)) !important;
         box-shadow: 0 0 25px rgba(63, 185, 80, 0.2);
     }}
     .ach-locked {{
@@ -110,25 +110,10 @@ st.markdown(f"""
         backdrop-filter: blur(12px);
     }}
     
-    /* СТИЛИ ДОРОГОГО SAAS-ЛЕНДИНГА */
+    /* СТИЛИ ПРЕМИАЛЬНОГО САЙТА */
     .saas-hero {{
         text-align: center;
-        padding: 50px 20px 30px 20px;
-    }}
-    .bento-card {{
-        background: linear-gradient(180deg, rgba(16, 24, 40, 0.9) 0%, rgba(10, 15, 26, 0.95) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 24px;
-        padding: 30px;
-        margin-bottom: 24px;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        transition: transform 0.3s ease, border-color 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }}
-    .bento-card:hover {{
-        border-color: rgba(88, 166, 255, 0.4);
-        transform: translateY(-4px);
+        padding: 50px 20px 20px 20px;
     }}
     .system-footer {{
         text-align: center;
@@ -143,18 +128,17 @@ st.markdown(f"""
 
 
 # =====================================================================
-# ЭКРАН 1: 🌟 УЛЬТРАСОВРЕМЕННЫЙ SAAS-ЛЕНДИНГ (BENTO GRID)
+# ЭКРАН 1: 🌟 ПРЕМИАЛЬНЫЙ СААС-ЛЕНДИНГ
 # =====================================================================
 if st.session_state.page == "landing":
     st.markdown("""
         <div class="saas-hero">
             <span class="hud-pill pro-pill" style="margin-bottom: 20px;">⚡ Next-Gen Product & Biohack Ecosystem</span>
-            <h1 style="font-size: 52px; font-weight: 900; letter-spacing: -1.5px; margin-bottom: 15px; background: linear-gradient(135deg, #ffffff 30%, #58a6ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD</h1>
-            <p style="font-size: 19px; color: #8b949e; max-width: 650px; margin: 0 auto 30px auto; line-height: 1.5;">Архитектура продуктивности нового поколения. Контроль ЦНС, RPG-геймификация и предиктивное восстановление в едином интерфейсе.</p>
+            <h1 style="font-size: 50px; font-weight: 900; letter-spacing: -1.5px; margin-bottom: 15px; background: linear-gradient(135deg, #ffffff 20%, #58a6ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD</h1>
+            <p style="font-size: 18px; color: #8b949e; max-width: 600px; margin: 0 auto 30px auto; line-height: 1.5;">Архитектура продуктивности нового поколения. Контроль ЦНС, RPG-геймификация и предиктивное восстановление.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Главный баннер (Hero)
     try:
         st.image("hero.jpg", use_container_width=True)
     except:
@@ -168,60 +152,58 @@ if st.session_state.page == "landing":
             st.rerun()
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; margin-bottom: 30px; font-weight: 800;'>🛠️ КЛЮЧЕВЫЕ МОДУЛИ ПЛАТФОРМЫ</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; margin-bottom: 30px; font-weight: 800; letter-spacing: 1px;'>🛠️ КЛЮЧЕВЫЕ МОДУЛИ ПЛАТФОРМЫ</h3>", unsafe_allow_html=True)
 
-    # Сетка в стиле Bento (по 2 колонки для дорогого вида)
+    # Функция для рендеринга премиальной карточки (картинка + текст поверх или внутри)
+    def render_bento_module(emoji, title, desc, img_file):
+        st.markdown(f"""
+            <div style="
+                background: linear-gradient(180deg, rgba(13,20,35,0.9) 0%, rgba(7,11,19,0.95) 100%);
+                border: 1px solid rgba(88, 166, 255, 0.22);
+                border-radius: 24px;
+                padding: 24px;
+                margin-bottom: 25px;
+                box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+                position: relative;
+            ">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <span style="font-size: 28px; background: rgba(88,166,255,0.15); padding: 8px 12px; border-radius: 14px;">{emoji}</span>
+                    <h3 style="margin: 0; font-size: 20px; font-weight: 800;">{title}</h3>
+                </div>
+                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">{desc}</p>
+            </div>
+        """, unsafe_allow_html=True)
+        try:
+            st.image(img_file, use_container_width=True)
+        except:
+            pass
+        st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+
     bc1, bc2 = st.columns(2)
 
     with bc1:
-        st.markdown("""
-            <div class="bento-card">
-                <span style="font-size: 32px;">🛡️</span>
-                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">Био-Мониторинг ЦНС</h3>
-                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Интеллектуальный трекинг сна, экранного времени и спазма глаз. Предиктивный движок вычисляет уровень усталости и защищает от выгорания.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        try:
-            st.image("bio.jpg", use_container_width=True)
-        except:
-            pass
-
-        st.markdown("""
-            <div class="bento-card" style="margin-top: 24px;">
-                <span style="font-size: 32px;">🏆</span>
-                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">Зал Славы (36 Трофеев)</h3>
-                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Элитная система достижений за успехи в учебе, кодинге, олимпиадах и спортивных единоборствах (каратэ, кобудо, ОФП).</p>
-            </div>
-        """, unsafe_allow_html=True)
-        try:
-            st.image("trophies.jpg", use_container_width=True)
-        except:
-            pass
+        render_bento_module(
+            "🛡️", "Био-Мониторинг ЦНС",
+            "Интеллектуальный трекинг сна, экранного времени и спазма глаз. Предиктивный движок защищает от выгорания.",
+            "bio.jpg"
+        )
+        render_bento_module(
+            "🏆", "Зал Славы (36 Трофеев)",
+            "Элитная система достижений за успехи в учебе, кодинге, олимпиадах и спортивных единоборствах.",
+            "trophies.jpg"
+        )
 
     with bc2:
-        st.markdown("""
-            <div class="bento-card">
-                <span style="font-size: 32px;">⚔️</span>
-                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">RPG-Прокачка & Heatmap</h3>
-                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Геймификация рутины: уровни, очки опыта (XP), ежедневные квесты и GitHub-style тепловая карта активности.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        try:
-            st.image("rpg.jpg", use_container_width=True)
-        except:
-            pass
-
-        st.markdown("""
-            <div class="bento-card" style="margin-top: 24px;">
-                <span style="font-size: 32px;">🧘</span>
-                <h3 style="margin: 15px 0 10px 0; font-size: 20px;">Нейро-Резет & Советник</h3>
-                <p style="color: #8b949e; font-size: 14px; line-height: 1.6; margin: 0;">Интерактивные таймеры пауз, дыхательные протоколы и умный советник по контрастному душу, сауне и растяжке.</p>
-            </div>
-        """, unsafe_allow_html=True)
-        try:
-            st.image("reset.jpg", use_container_width=True)
-        except:
-            pass
+        render_bento_module(
+            "⚔️", "RPG-Прокачка & Heatmap",
+            "Геймификация рутины: уровни, очки опыта (XP), ежедневные квесты и GitHub-style тепловая карта активности.",
+            "rpg.jpg"
+        )
+        render_bento_module(
+            "🧘", "Нейро-Резет & Советник",
+            "Интерактивные таймеры пауз, дыхательные протоколы и умный советник по контрастному душу, сауне и растяжке.",
+            "reset.jpg"
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
     c_btn4, c_btn5, c_btn6 = st.columns([1, 1.3, 1])
