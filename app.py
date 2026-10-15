@@ -1162,7 +1162,7 @@ elif st.session_state.page == "dashboard":
             pr_c1, pr_c2 = st.columns([1, 1.3])
             with pr_c1:
                 st.markdown("##### Зафиксировать личный максимум")
-                pr_cat = st.selectbox("Сфера рекорда:", ["Силовая база", "Калистеника", "Бег / Выносливость", "Учеба и Код"])
+                pr_cat = st.selectbox("Сфера рекорда:", ["Силовая база", "Калистеника", "Бег / Выносливость", "Учеба и Код"], key="pr_category_select")
                 pr_title = st.text_input("Дисциплина:", placeholder="Жим лежа / Подтягивания")
                 pr_val = st.number_input("Значение:", min_value=0.0, max_value=50000.0, value=100.0)
                 pr_unit = st.text_input("Единицы:", value="кг")
