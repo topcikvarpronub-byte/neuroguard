@@ -297,10 +297,35 @@ with tab_rpg:
         st.info("Сохрани первый RPG-лог выше, чтобы активировать тепловую карту!")
 
 # =====================================================================
-# ВКЛАДКА 3: 🎯 ГЛОБАЛЬНЫЕ ЦЕЛИ
+# ВКЛАДКА 3: 🎯 ГЛОБАЛЬНЫЕ ЦЕЛИ (С возможностью добавления своих!)
 # =====================================================================
 with tab_goals:
     st.markdown("#### 🎯 Глобальные Цели на Месяц и Год")
+    st.caption("Эти шкалы постоянно мозолят глаза и заставляют двигаться вперед!")
+
+    # Форма добавления новой цели
+    with st.expander("➕ Добавить новую цель"):
+        new_period = st.selectbox("Период цели", ["Месяц (month)", "Год (year)"], format_func=lambda x: "Месяц" if "month" in x else "Год")
+        p_val = "month" if "month" in new_period else "year"
+        new_title = st.text_input("Название цели", placeholder="Например: Сдать ЕГЭ по информатике на 90+")
+        new_target = st.number_input("Целевое значение", min_value=1.0, value=100.0, step=1.0)
+        new_unit = st.text_input("Единица измерения", value="балл")
+        
+        if st.button("🚀 Создать цель", use_container_width=True):
+            if new_title.strip():
+                conn = DatabaseManager.get_conn()
+                c = conn.cursor()
+                c.execute(
+                    "INSERT INTO user_goals (user_id, goal_period, goal_title, target_value, current_value, unit) VALUES (?, ?, ?, ?, 0.0, ?)",
+                    (uid, p_val, new_title.strip(), new_target, new_unit.strip())
+                )
+                conn.commit()
+                conn.close()
+                st.success("✅ Новая цель успешно добавлена!")
+                st.rerun()
+            else:
+                st.warning("Введите название цели!")
+
     goals_df = DatabaseManager.get_goals(uid)
 
     col_m, col_y = st.columns(2)
@@ -346,6 +371,7 @@ with tab_goals:
                     DatabaseManager.update_goal_progress(gid, new_val)
                     st.rerun()
                 st.divider()
+
 
 # =====================================================================
 # ВКЛАДКА 4: 🏆 36 ТРОФЕЕВ
