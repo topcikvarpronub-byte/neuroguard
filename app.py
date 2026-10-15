@@ -15,94 +15,127 @@ st.set_page_config(
 
 DatabaseManager.init_db()
 
-# Управление экранами (Лендинг -> Авторизация -> Дашборд)
 if "page" not in st.session_state:
-    st.session_state.page = "landing"  # 'landing', 'auth', 'dashboard'
+    st.session_state.page = "landing"
 
 if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
-# --- 2. СТИЛИ И ЦВЕТА ---
-bg_main = "#0d1117"
-bg_card = "#161b22"
-border_col = "#30363d"
-text_col = "#e6edf3"
+# --- 2. ПРЕМИАЛЬНЫЙ CSS-ВИЗУАЛ (GLASSMORPHISM & FONTS) ---
+bg_main = "#0b0f19"
+bg_card = "#131c2e"
+border_col = "rgba(255, 255, 255, 0.08)"
+text_col = "#f0f6fc"
 
 st.markdown(f"""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
-        background-color: {bg_main} !important;
+        background: radial-gradient(circle at 50% 0%, #162238 0%, {bg_main} 70%) !important;
         color: {text_col} !important;
+        font-family: 'Inter', sans-serif !important;
     }}
     [data-testid="stSidebar"] {{
-        background-color: {bg_card} !important;
+        background-color: #0e1626 !important;
         border-right: 1px solid {border_col} !important;
     }}
     h1, h2, h3, h4, p, span, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {{
         color: {text_col} !important;
+        font-family: 'Inter', sans-serif !important;
+    }}
+    code, pre, [data-testid="stMetricValue"] {{
+        font-family: 'JetBrains Mono', monospace !important;
     }}
     div[data-baseweb="select"] > div, input, textarea {{
-        background-color: {bg_card} !important;
+        background-color: #1a263f !important;
         color: {text_col} !important;
-        border: 1px solid {border_col} !important;
+        border: 1px solid rgba(88, 166, 255, 0.2) !important;
+        border-radius: 10px !important;
     }}
     .hud-row {{
         display: flex;
-        gap: 6px;
+        gap: 8px;
         flex-wrap: wrap;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }}
     .hud-pill {{
-        background-color: {bg_card};
-        border: 1px solid {border_col};
-        border-radius: 18px;
-        padding: 5px 12px;
+        background: rgba(19, 28, 46, 0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 6px 14px;
         font-size: 13px;
         font-weight: 700;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }}
     .pro-pill {{
         border: 1px solid #f1e05a !important;
-        background: linear-gradient(135deg, rgba(241,224,90,0.18), rgba(22,27,34,0.9));
+        background: linear-gradient(135deg, rgba(241,224,90,0.22), rgba(19,28,46,0.9)) !important;
         color: #f1e05a !important;
     }}
     .ach-card {{
-        background-color: {bg_card};
-        border-radius: 12px;
-        padding: 12px;
-        margin-bottom: 10px;
+        background: rgba(19, 28, 46, 0.7);
+        backdrop-filter: blur(10px);
+        border-radius: 14px;
+        padding: 14px;
+        margin-bottom: 12px;
         border: 1px solid {border_col};
+        transition: all 0.3s ease;
+    }}
+    .ach-card:hover {{
+        border-color: rgba(88, 166, 255, 0.4);
+        transform: translateY(-2px);
     }}
     .ach-unlocked {{
-        border: 1px solid #3fb950 !important;
-        background: linear-gradient(135deg, rgba(63,185,80,0.14), rgba(22,27,34,0.9));
+        border: 1px solid rgba(63, 185, 80, 0.5) !important;
+        background: linear-gradient(135deg, rgba(63,185,80,0.18), rgba(19,28,46,0.85)) !important;
+        box-shadow: 0 0 20px rgba(63, 185, 80, 0.15);
     }}
     .ach-locked {{
-        opacity: 0.42;
+        opacity: 0.38;
     }}
     .breath-box {{
-        border-radius: 14px;
-        padding: 20px;
+        border-radius: 16px;
+        padding: 24px;
         text-align: center;
-        font-size: 20px;
+        font-size: 22px;
         font-weight: 700;
-        margin: 10px 0;
+        margin: 12px 0;
         border: 2px solid #58a6ff;
-        background: rgba(88, 166, 255, 0.12);
+        background: rgba(88, 166, 255, 0.1);
+        box-shadow: 0 0 30px rgba(88, 166, 255, 0.15);
+        backdrop-filter: blur(10px);
     }}
     .landing-hero {{
         text-align: center;
-        padding: 40px 20px;
+        padding: 60px 20px 30px 20px;
     }}
     .landing-card {{
-        background-color: {bg_card};
-        border: 1px solid {border_col};
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 15px;
+        background: rgba(19, 28, 46, 0.6);
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 24px;
+        margin-bottom: 20px;
         text-align: center;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        transition: transform 0.3s ease;
+    }}
+    .landing-card:hover {{
+        transform: translateY(-5px);
+        border-color: rgba(88, 166, 255, 0.3);
+    }}
+    .system-footer {{
+        text-align: center;
+        font-size: 12px;
+        color: #8b949e;
+        margin-top: 40px;
+        padding: 20px;
+        border-top: 1px solid {border_col};
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -114,8 +147,9 @@ st.markdown(f"""
 if st.session_state.page == "landing":
     st.markdown("""
         <div class="landing-hero">
-            <h1 style="font-size: 42px; margin-bottom: 10px;">⚡ NEUROGUARD SaaS</h1>
-            <p style="font-size: 18px; color: #8b949e;">Продвинутая платформа продуктивности, биохакинга и защиты ЦНС</p>
+            <span class="hud-pill pro-pill" style="margin-bottom: 15px;">🚀 v2.5 Enterprise Edition</span>
+            <h1 style="font-size: 52px; font-weight: 800; letter-spacing: -1px; margin-bottom: 15px; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NEUROGUARD SaaS</h1>
+            <p style="font-size: 20px; color: #8b949e; max-width: 600px; margin: 0 auto;">Интеллектуальная экосистема для глубокой продуктивности, биохакинга ЦНС и геймификации твоего потенциала.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -123,45 +157,57 @@ if st.session_state.page == "landing":
     with col1:
         st.markdown("""
             <div class="landing-card">
-                <h3>🛡️ Био-контроль</h3>
-                <p style="font-size: 13px; color: #8b949e;">Контроль сна, экранного времени, спазма глаз и предиктивный анализ выгорания.</p>
+                <div style="font-size: 32px; margin-bottom: 10px;">🛡️</div>
+                <h3>Био-Мониторинг</h3>
+                <p style="font-size: 13px; color: #8b949e;">Контроль сна, экранного времени, спазма глаз и предиктивный алгоритм предотвращения выгорания.</p>
             </div>
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("""
             <div class="landing-card">
-                <h3>⚔️ RPG-Прокачка</h3>
-                <p style="font-size: 13px; color: #8b949e;">Система уровней, опыта (XP), квестов и тепловая активность в стиле GitHub.</p>
+                <div style="font-size: 32px; margin-bottom: 10px;">⚔️</div>
+                <h3>RPG-Прокачка</h3>
+                <p style="font-size: 13px; color: #8b949e;">Система уровней, опыта (XP), ежедневных квестов и GitHub-style тепловая карта активности.</p>
             </div>
         """, unsafe_allow_html=True)
     with col3:
         st.markdown("""
             <div class="landing-card">
-                <h3>🏆 36 Трофеев</h3>
-                <p style="font-size: 13px; color: #8b949e;">Уникальные достижения за дисциплину, спорт, кодинг и интеллектуальные победы.</p>
+                <div style="font-size: 32px; margin-bottom: 10px;">🏆</div>
+                <h3>Зал Славы</h3>
+                <p style="font-size: 13px; color: #8b949e;">36 уникальных трофеев за дисциплину, спорт, кодинг, интеллектуальные победы и олимпиады.</p>
             </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     c_btn1, c_btn2, c_btn3 = st.columns([1, 1.2, 1])
     with c_btn2:
-        if st.button("🚀 Войти в систему / Начать", use_container_width=True, type="primary"):
+        if st.button("⚡ Войти в систему", use_container_width=True, type="primary"):
             st.session_state.page = "auth"
             st.rerun()
+
+    st.markdown("""
+        <div class="system-footer">
+            🟢 System Online • Secured with SQLite & Streamlit Core<br>
+            © 2026 NeuroGuard Inc. Все права защищены.
+        </div>
+    """, unsafe_allow_html=True)
 
 
 # =====================================================================
 # ЭКРАН 2: 🔐 ОКНО ВХОДА И РЕГИСТРАЦИИ (Auth Gate)
 # =====================================================================
 elif st.session_state.page == "auth":
-    st.markdown("<h2 style='text-align: center;'>🔐 Авторизация в NeuroGuard</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; margin-top: 40px;'>🔐 Авторизация в системе</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #8b949e; margin-bottom: 30px;'>Введите учетные данные для доступа к защищенному дашборду</p>", unsafe_allow_html=True)
     
     col_a1, col_a2, col_a3 = st.columns([1, 1.2, 1])
     with col_a2:
         auth_mode = st.radio("Режим:", ["Вход в аккаунт", "Создать профиль"], horizontal=True)
         inp_user = st.text_input("Никнейм", placeholder="Например: Igor_Founder")
-        inp_pin = st.text_input("PIN-код (4-8 символов)", type="password", max_chars=8)
+        inp_pin = st.text_input("PIN-код", type="password", max_chars=8, placeholder="••••")
 
+        st.markdown("<br>", unsafe_allow_html=True)
         col_act1, col_act2 = st.columns(2)
         with col_act1:
             if st.button("⬅️ Назад", use_container_width=True):
@@ -232,8 +278,8 @@ elif st.session_state.page == "dashboard":
     tier_pill = '<span class="hud-pill pro-pill">💎 PRO x1.25 XP</span>' if is_pro else '<span class="hud-pill">🆓 FREE</span>'
 
     st.markdown(f"""
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:6px;">
-        <h3 style="margin:0;">⚡ {uname}</h3>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:12px;">
+        <h3 style="margin:0; font-weight:700;">⚡ {uname}</h3>
         <div class="hud-row" style="margin:0;">
             {tier_pill}
             <span class="hud-pill" style="border-color:{rank_col}; color:{rank_col};">{rank_txt}</span>
@@ -293,9 +339,9 @@ elif st.session_state.page == "dashboard":
 
             burnout = CoreEngine.analyze_burnout_risk(df_logs, df_rpg)
             st.markdown(f"""
-            <div style="background-color:{burnout['color']}22; border:1px solid {burnout['color']}; border-radius:10px; padding:10px; margin-top:10px;">
+            <div style="background-color:{burnout['color']}18; border:1px solid {burnout['color']}; border-radius:12px; padding:14px; margin-top:12px;">
                 <b style="color:{burnout['color']};">{burnout['risk_level']}</b><br>
-                <p style="margin:5px 0 0 0; font-size:13px;">{burnout['message']}</p>
+                <p style="margin:6px 0 0 0; font-size:13px; color:#c9d1d9;">{burnout['message']}</p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -483,7 +529,7 @@ elif st.session_state.page == "dashboard":
                         <span style="font-size:16px; font-weight:700;">{ach['icon']} {ach['title']}</span>
                         <span class="hud-pill">{status_ico}</span>
                     </div>
-                    <p style="margin:4px 0 0 0; font-size:12px;">{ach['desc']}</p>
+                    <p style="margin:6px 0 0 0; font-size:12px; color:#8b949e;">{ach['desc']}</p>
                 </div>
                 """, unsafe_allow_html=True)
 
