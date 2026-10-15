@@ -264,7 +264,7 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
-            @classmethod
+    @classmethod
     def add_xp(cls, user_id: int, base_xp: int):
         conn = cls.get_conn()
         c = conn.cursor()
@@ -283,6 +283,7 @@ class DatabaseManager:
             pass
         finally:
             conn.close()
+
 
 DatabaseManager.init_db()
 
