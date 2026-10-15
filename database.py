@@ -15,7 +15,6 @@ class DatabaseManager:
         conn = cls.get_conn()
         c = conn.cursor()
 
-        # 1. Таблица пользователей
         c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +25,6 @@ class DatabaseManager:
             )
         """)
 
-        # 2. Таблица логов здоровья
         c.execute("""
             CREATE TABLE IF NOT EXISTS daily_health_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +44,6 @@ class DatabaseManager:
             )
         """)
 
-        # 3. Таблица RPG-прокачки
         c.execute("""
             CREATE TABLE IF NOT EXISTS rpg_actions_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +69,6 @@ class DatabaseManager:
             )
         """)
 
-        # 4. Таблица разблокированных ачивок
         c.execute("""
             CREATE TABLE IF NOT EXISTS achievements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,7 +80,6 @@ class DatabaseManager:
             )
         """)
 
-        # 5. Таблица целей (Год / Месяц)
         c.execute("""
             CREATE TABLE IF NOT EXISTS user_goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,7 +93,6 @@ class DatabaseManager:
             )
         """)
 
-        # Дефолтный аккаунт основателя
         c.execute("SELECT id FROM users WHERE username = 'Igor_Founder'")
         if not c.fetchone():
             c.execute(
@@ -238,10 +232,11 @@ class DatabaseManager:
     @classmethod
     def get_goals(cls, user_id: int) -> pd.DataFrame:
         conn = cls.get_conn()
-        df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM user_goals WHERE user_id = ?", (user_id,))
+        count = c.fetchone()[0]
         
-        if df.empty:
-            c = conn.cursor()
+        if count == 0:
             defaults = [
                 (user_id, 'month', 'Закрыть план на 100% дней', 30, 5, 'дн'),
                 (user_id, 'month', 'Решить задач по коду/ЕГЭ', 100, 22, 'задач'),
@@ -250,8 +245,11 @@ class DatabaseManager:
             ]
             c.executemany("INSERT INTO user_goals (user_id, goal_period, goal_title, target_value, current_value, unit) VALUES (?, ?, ?, ?, ?, ?)", defaults)
             conn.commit()
-            df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
             
+        conn.close()
+        
+        conn = cls.get_conn()
+        df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
         conn.close()
         return df
 
