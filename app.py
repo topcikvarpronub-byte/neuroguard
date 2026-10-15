@@ -1116,7 +1116,7 @@ elif st.session_state.page == "dashboard":
             tr_c1, tr_c2 = st.columns([1.15, 1])
             with tr_c1:
                 st.markdown("##### Рабочие протоколы тренировок")
-                w_choice = st.selectbox("Выбери направление:", list(WORKOUT_PROTOCOLS.keys()))
+                with st.expander("Добавить событие или дедлайн"):
                 steps = WORKOUT_PROTOCOLS.get(w_choice, [])
                 st.markdown('<div class="bento-card">', unsafe_allow_html=True)
                 for idx_s, st_text in enumerate(steps, 1):
@@ -1513,3 +1513,6 @@ elif st.session_state.page == "dashboard":
             df_leader = DatabaseManager.get_leaderboard()
             if df_leader is not None and not df_leader.empty:
                 st.dataframe(df_leader, use_container_width=True, hide_index=True)
+                [data-testid="stExpander"] span, details summary span {
+    color: inherit !important;
+}
