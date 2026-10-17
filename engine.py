@@ -224,3 +224,55 @@ class CoreEngine:
         else:
             lines.append("• Нет записей за период.")
         return "\n".join(lines)
+
+@staticmethod
+    def calculate_streak_traffic_light(df_rpg: pd.DataFrame) -> dict:
+        """
+        Рассчитывает светофор дней и стрик с буфером в 3 пропуска.
+        Зеленый: план >= 80%
+        Желтый: заходил, но план < 80% (или есть лог)
+        Красный: нет активности
+        """
+        # Если логов нет, возвращаем дефолт
+        if df_rpg is None or df_rpg.empty:
+            return {"streak": 0, "status_map": {}, "last_color": "red"}
+
+        # Превращаем даты в словарь для быстрого доступа
+        logs_dict = {}
+        for _, row in df_rpg.iterrows():
+            d_str = str(row["log_date"])
+            plan_pct = row.get("plan_percent", 0)
+            logs_dict[d_str] = plan_pct
+
+        current_streak = 0
+        consecutive_misses = 0
+        
+        # Проходим по последним дням (или можно взять диапазон дат)
+        # Для простоты берем уникальные даты из логов, отсортированные по возрастанию
+        sorted_dates = sorted(list(logs_dict.keys()))
+        
+        status_map = {}
+        for d in sorted_dates:
+            pct = logs_dict[d]
+            if pct >= 80:
+                status_map[d] = "green"
+                current_streak += 1
+                consecutive_misses = 0 # сбрасываем счетчик пропусков
+            elif pct > 0:
+                status_map[d] = "yellow"
+                current_streak += 1
+                consecutive_misses = 0
+            else:
+                status_map[d] = "red"
+                consecutive_misses += 1
+                # Стрик сгорает только если пропустили 3 дня подряд
+                if consecutive_misses >= 3:
+                    current_streak = 0
+
+        last_color = status_map[sorted_dates[-1]] if sorted_dates else "red"
+        
+        return {
+            "streak": current_streak,
+            "status_map": status_map,
+            "last_color": last_color
+        }
