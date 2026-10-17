@@ -1,22 +1,18 @@
 from datetime import date
 import pandas as pd
+import streamlit as st
 from supabase import create_client, Client
 
 class DatabaseManager:
-    # Твои данные подключения к Supabase
-    SUPABASE_URL = "https://jxqrmxfzzplspfkwhrij.supabase.co"
-    SUPABASE_KEY = "Sb_secret_G05JIC-LWGWN7kalu4cDiA_AyUkJ-97"
-
     @classmethod
     def get_client(cls) -> Client:
-        return create_client(cls.SUPABASE_URL, cls.SUPABASE_KEY)
+        # Безопасно подтягиваем ключи из st.secrets или fallback на статические переменные
+        url = st.secrets.get("SUPABASE_URL", "https://jxqrmxfzzplspfkwhrij.supabase.co")
+        key = st.secrets.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cXJteGZ6enBsc3Bma3docmlqIwbjbyI6ImFub24iLCJpYXQiOjE3OTIxOTI1MTgsImV4cCI6MjEwNzc2ODUxOH0.95l0BaAjAN4YS9bHRYT8nfcaypvfeqKXx8v6deL-acQ")
+        return create_client(url, key)
 
     @classmethod
     def init_db(cls):
-        """
-        В Supabase таблицы создаются через веб-интерфейс (Table Editor).
-        Здесь мы можем автоматически проверять/создавать дефолтного основателя (Igor_Founder).
-        """
         supabase = cls.get_client()
         try:
             res = supabase.table("users").select("id").eq("username", "Igor_Founder").execute()
@@ -39,12 +35,10 @@ class DatabaseManager:
 
         if create_new:
             try:
-                # Проверяем, есть ли уже такой
                 existing = supabase.table("users").select("id").eq("username", username).execute()
                 if existing.data:
                     return None, "Пользователь с таким ником уже существует!"
                 
-                # Создаем нового
                 res = supabase.table("users").insert({
                     "username": username,
                     "pin_code": pin_code,
@@ -54,7 +48,6 @@ class DatabaseManager:
             except Exception as e:
                 return None, f"Ошибка регистрации: {e}"
 
-        # Авторизация
         try:
             res = supabase.table("users").select("id, username, is_pro").eq("username", username).eq("pin_code", pin_code).execute()
             if res.data:
@@ -75,8 +68,6 @@ class DatabaseManager:
 
     @classmethod
     def save_health_log(cls, data: tuple):
-        # Распаковываем кортеж аргументов в словарь для Supabase
-        # (user_id, log_date, sleep_hours, sleep_quality, study_hours, eye_strain, training_type, training_intensity, head_impact, readiness_score, ai_advice)
         payload = {
             "user_id": data[0],
             "log_date": data[1],
@@ -92,14 +83,12 @@ class DatabaseManager:
         }
         supabase = cls.get_client()
         try:
-            # upsert заменяет запись, если совпадает UNIQUE (user_id, log_date)
             supabase.table("daily_health_logs").upsert(payload, on_conflict="user_id,log_date").execute()
         except Exception as e:
             print(f"Ошибка сохранения health log: {e}")
 
     @classmethod
     def save_rpg_log(cls, data: tuple):
-        # (user_id, log_date, exercises_reps, agility_drills, book_pages, topics_learned, tasks_solved, plan_text, plan_percent, total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, rpg_advice, daily_note)
         payload = {
             "user_id": data[0],
             "log_date": data[1],
@@ -151,7 +140,6 @@ class DatabaseManager:
     def unlock_achievement(cls, user_id: int, ach_code: str):
         supabase = cls.get_client()
         try:
-            # Вставляем игнорируя дубликаты (в Supabase через upsert с do_nothing или проверкой)
             existing = supabase.table("achievements").select("id").eq("user_id", user_id).eq("ach_code", ach_code).execute()
             if not existing.data:
                 supabase.table("achievements").insert({
@@ -177,7 +165,6 @@ class DatabaseManager:
     def get_leaderboard(cls) -> pd.DataFrame:
         supabase = cls.get_client()
         try:
-            # Вытягиваем всех пользователей, их RPG логи и ачивки для формирования рейтинга через Pandas
             users_res = supabase.table("users").select("id, username, is_pro").execute()
             rpg_res = supabase.table("rpg_actions_logs").select("user_id, xp_earned").execute()
             ach_res = supabase.table("achievements").select("user_id, ach_code").execute()
@@ -189,13 +176,9 @@ class DatabaseManager:
             if users_df.empty:
                 return pd.DataFrame(columns=["Игрок", "Статус", "Всего_XP", "Уровень", "Трофеев"])
 
-            # Считаем сумму XP по пользователям
             xp_grouped = rpg_df.groupby("user_id")["xp_earned"].sum().reset_index() if not rpg_df.empty else users_df[["id"]].assign(xp_earned=0)
-            
-            # Считаем уникальные ачивки по пользователям
             ach_grouped = ach_df.groupby("user_id")["ach_code"].nunique().reset_index(name="Трофеев") if not ach_df.empty else users_df[["id"]].assign(Трофеев=0)
 
-            # Объединяем всё в один датафрейм
             df = users_df.merge(xp_grouped, left_on="id", right_on="user_id", how="left").fillna(0)
             df = df.merge(ach_grouped, on="id", how="left").fillna(0)
 
@@ -219,7 +202,6 @@ class DatabaseManager:
             if res.data and len(res.data) > 0:
                 return pd.DataFrame(res.data)
             
-            # Если целей нет, создаем дефолтные
             defaults = [
                 {"user_id": user_id, "goal_period": "month", "goal_title": "Закрыть план на 100% дней", "target_value": 30, "current_value": 5, "unit": "дн"},
                 {"user_id": user_id, "goal_period": "month", "goal_title": "Решить задач по коду/ЕГЭ", "target_value": 100, "current_value": 22, "unit": "задач"},
