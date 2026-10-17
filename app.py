@@ -3,10 +3,6 @@ import time
 from datetime import date
 import streamlit as st
 import pandas as pd
-
-# ==============================================================================
-# МОДУЛЬНЫЕ ИМПОРТЫ ИЗ ФАЙЛОВ ПРОЕКТА
-# ==============================================================================
 from database import DatabaseManager
 from engine import CoreEngine
 from achievements_data import ACHIEVEMENTS_CATALOG
