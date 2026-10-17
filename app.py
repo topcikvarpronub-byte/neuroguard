@@ -1,4 +1,4 @@
-import os
+Import os
 import time
 from datetime import date
 import streamlit as st
@@ -983,51 +983,7 @@ with tabs[3]:
                 time.sleep(1)
             progress_bar.progress(1.0)
             status_txt.success("✅ Таймер завершён! Отличная работа.")
-        df_lb = DatabaseManager.get_leaderboard()
-        st.dataframe(df_lb, use_container_width=True, hide_index=True)
 
-
-# ------------------------------------------------------------------------------
-# ВКЛАДКА 6: ИНТЕЛЛЕКТУАЛЬНАЯ БАЗА ЗНАНИЙ (40 КНИГ С ИНТЕРАКТИВНЫМ СТАТУСОМ)
-# ------------------------------------------------------------------------------
-with tabs[5]:
-    st.markdown("#### 📚 Фундаментальная библиотека оператора (40 книг)")
-    st.caption("Отборная литература по алгоритмам, когнитивной психологии, биохакингу ЦНС и спортивной дисциплине.")
-
-    # Инициализация интерактивных статусов книг в сессии
-    if "book_statuses" not in st.session_state:
-        st.session_state.book_statuses = {
-            b["title"]: b["status"]
-            for sec in LIBRARY_CATALOG.values()
-            for b in sec
-        }
-
-    # Сводка по библиотеке с учетом живых статусов
-    all_books_flat = [b for sec in LIBRARY_CATALOG.values() for b in sec]
-    read_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "Прочитано")
-    proc_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "В процессе")
-    plan_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "В планах")
-
-    lb_m1, lb_m2, lb_m3 = st.columns(3)
-    lb_m1.metric("✅ Прочитано полностью", f"{read_cnt} книг")
-    lb_m2.metric("📖 В процессе изучения", f"{proc_cnt} книг")
-    lb_m3.metric("📌 В очереди (В планах)", f"{plan_cnt} книг")
-
-    lib_col1, lib_col2, lib_col3 = st.columns([1.2, 1, 1])
-    with lib_col1:
-        lib_section = st.selectbox("Раздел базы знаний", ["Все разделы"] + list(LIBRARY_CATALOG.keys()))
-    with lib_col2:
-        status_book_filter = st.selectbox("Статус чтения", ["Все статусы", "Прочитано", "В процессе", "В планах"])
-    with lib_col3:
-        book_search = st.text_input("🔍 Поиск книги или автора", placeholder="Например: Кормен, Гоггинс, Python...")
-
-    books_to_show = []
-    for sec_name, book_list in LIBRARY_CATALOG.items():
-        if lib_section != "Все разделы" and sec_name != lib_section:
-            continue
-        for b in book_list:
-            curr_st = st.session_state.book_statuses.get(b["title"], b["status"])
-   
 
 # ------------------------------------------------------------------------------
 # ВКЛАДКА 5: ЗАЛ СЛАВЫ (ВСЕ 100 ДОСТИЖЕНИЙ), СТРАТЕГИЧЕСКИЕ ЦЕЛИ И ЛИДЕРБОРД
@@ -1040,133 +996,6 @@ with tabs[4]:
     ])
 
     # Подвкладка 1: Полный каталог 100 ачивок из achievements_data.py
-    with g_tab1:
-        st.markdown("##### 🏆 Полный каталог 100 достижений NeuroGuard")
-        st.progress(unlocked_count / 100.0, text=f"Общий прогресс Зала Славы: {unlocked_count}% ({unlocked_count} из 100 трофеев открыто)")
-
-        all_categories = sorted(list(set(item["category"] for item in synced_achievements)))
-
-        f_col1, f_col2, f_col3 = st.columns([1.2, 1, 1])
-        with f_col1:
-            selected_cat = st.selectbox("Фильтр по категории", ["Все категории (100)"] + all_categories)
-        with f_col2:
-            status_filter = st.selectbox("Статус трофеев", ["Все трофеи", "Только открытые", "Только закрытые"])
-        with f_col3:
-            search_ach = st.text_input("🔍 Поиск по названию или коду", placeholder="Например: Кобудо, ЕГЭ, BIO_01...")
-
-        filtered_list = synced_achievements
-        if selected_cat != "Все категории (100)":
-            filtered_list = [a for a in filtered_list if a["category"] == selected_cat]
-        if status_filter == "Только открытые":
-            filtered_list = [a for a in filtered_list if a["unlocked"]]
-        elif status_filter == "Только закрытые":
-# ------------------------------------------------------------------------------
-# ВКЛАДКА 4: ТРЕНИРОВОЧНЫЕ ПРОТОКОЛЫ, НЕЙРО-РЕЗЕТ ЦНС И ТАЙМЕР
-# ------------------------------------------------------------------------------
-with tabs[3]:
-    st.markdown("#### 🧘 Протоколы тренировок, перезагрузка ЦНС и рабочий секундомер")
-    st.caption("Структурированные тренировочные комплексы из `library_data.py` и быстрые протоколы снятия спазма глаз и стресса.")
-
-    p_col1, p_col2 = st.columns([1.2, 1])
-
-    with p_col1:
-        st.markdown("##### 🥋 База тренировочных протоколов")
-        selected_proto = st.selectbox("Выбери тренировочную программу", list(WORKOUT_PROTOCOLS.keys()))
-
-        st.markdown('<div class="linear-card">', unsafe_allow_html=True)
-        st.markdown(f"#### {selected_proto}")
-        done_steps = 0
-        steps_list = WORKOUT_PROTOCOLS[selected_proto]
-        for idx, step_text in enumerate(steps_list, start=1):
-            if st.checkbox(f"**Этап {idx}.** {step_text}", key=f"proto_{selected_proto}_{idx}"):
-                done_steps += 1
-        st.progress(done_steps / float(len(steps_list)), text=f"Выполнено этапов комплекса: {done_steps} из {len(steps_list)}")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("##### 🧬 Протоколы экспресс-резета ЦНС и зрения")
-        res_tab1, res_tab2, res_tab3 = st.tabs([
-            "👁️ Снятие спазма глаз (Пальминг)",
-            "🌬️ Квадратное дыхание (4-4-4-4)",
-            "⚡ Физиологический вздох (Анти-стресс)"
-        ])
-        with res_tab1:
-            st.markdown("""
-            <div class="linear-card">
-                <b>Протокол глубокого расслабления цилиарной мышцы глаза:</b><br>
-                1. Разотри ладони друг о друга до ощущения интенсивного тепла (10 сек).<br>
-                2. Сложи ладони лодочкой и прикрой закрытые глаза без малейшего давления на глазные яблоки.<br>
-                3. Убедись, что свет не проникает сквозь пальцы. Представь абсолютно черное пространство.<br>
-                4. Сделай 10 медленных вдохов носом, расслабляя лоб, челюсть и затылок.<br>
-                5. Посмотри вдаль в окно на самую удаленную точку на 20 секунд.
-            </div>
-            """, unsafe_allow_html=True)
-        with res_tab2:
-            st.markdown("""
-            <div class="linear-card">
-                <b>Тактическое дыхание для снижения кортизола и стабилизации пульса:</b><br>
-                • <b>Вдох носом:</b> 4 секунды (плавно наполняя живот и грудную клетку).<br>
-                • <b>Задержка на вдохе:</b> 4 секунды (без натуживания и спазма горла).<br>
-                • <b>Плавный выдох:</b> 4 секунды.<br>
-                • <b>Пауза на выдохе:</b> 4 секунды.<br>
-                <i>Выполни 8–10 циклов по таймеру справа перед сложным экзаменом, кодингом или выходом на татами.</i>
-            </div>
-            """, unsafe_allow_html=True)
-        with res_tab3:
-            st.markdown("""
-            <div class="linear-card">
-                <b>Быстрое переключение в парасимпатический режим (метод Стэнфорда):</b><br>
-                1. Сделай глубокий вдох через нос на 80% объема легких.<br>
-                2. Без выдоха сделай резкий <b>второй до-вдох</b> носом до максимума (расправляет альвеолы).<br>
-                3. Сделай максимально долгий и медленный выдох через рот (в 2 раза длиннее вдоха).<br>
-                4. Повтори всего 3–5 раз — ЧСС снижается уже на 30-й секунде.
-            </div>
-            """, unsafe_allow_html=True)
-
-    with p_col2:
-        st.markdown("##### ⏱️ Интерактивный таймер / Секундомер сессий")
-        st.caption("Для статики (закрытый горизонт, планка, вис), раундов боя с тенью, дыхания или пальминга.")
-
-        timer_presets = {
-            "🤸 Статика: Удержание горизонта / виса (15 сек)": 15,
-            "🌬️ Дыхательный резет ЦНС (60 сек)": 60,
-            "👁️ Пальминг и разгрузка зрения (90 сек)": 90,
-            "🥋 Раунд боя с тенью / Кобудо (180 сек)": 180,
-            "💻 Спринт глубокого фокуса (600 сек / 10 мин)": 600
-        }
-        chosen_preset = st.selectbox("Быстрый выбор пресета", list(timer_presets.keys()))
-        seconds_to_run = st.number_input("Точное время (секунд)", min_value=5, max_value=1800, value=timer_presets[chosen_preset], step=5)
-
-        if st.button("▶️ Запустить обратный отсчёт", type="primary", use_container_width=True):
-            progress_bar = st.progress(0.0)
-            status_txt = st.empty()
-            for rem in range(int(seconds_to_run), 0, -1):
-                pct = (seconds_to_run - rem) / float(seconds_to_run)
-                progress_bar.progress(pct)
-                mins, secs = divmod(rem, 60)
-                status_txt.markdown(
-                    f"""
-                    <div class="linear-card" style="text-align:center; border-color:{accent_col};">
-                        <div style="font-size:0.8rem; color:#8b949e;">АКТИВНАЯ СЕССИЯ</div>
-                        <div style="font-size:2.4rem; font-weight:800; color:{accent_col};">{mins:02d}:{secs:02d}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                time.sleep(1)
-            progress_bar.progress(1.0)
-            status_txt.success("✅ Таймер завершён! Отличная работа.")
-
-
-# ------------------------------------------------------------------------------
-# ВКЛАДКА 5: ЗАЛ СЛАВЫ (ВСЕ 100 ДОСТИЖЕНИЙ), СТРАТЕГИЧЕСКИЕ ЦЕЛИ И ЛИДЕРБОРД
-# ------------------------------------------------------------------------------
-with tabs[4]:
-    g_tab1, g_tab2, g_tab3 = st.tabs([
-        f"🏆 Зал Славы ({unlocked_count}/100)",
-        "🎯 Стратегические Цели (Месяц / Год)",
-        "🌐 Глобальный Лидерборд"
-    ])
-
     with g_tab1:
         st.markdown("##### 🏆 Полный каталог 100 достижений NeuroGuard")
         st.progress(unlocked_count / 100.0, text=f"Общий прогресс Зала Славы: {unlocked_count}% ({unlocked_count} из 100 трофеев открыто)")
@@ -1225,6 +1054,7 @@ with tabs[4]:
                 </div>
                 """, unsafe_allow_html=True)
 
+    # Подвкладка 2: Стратегические цели на месяц и год
     with g_tab2:
         st.markdown("##### 🎯 Декомпозиция целей на Месяц и Год")
         df_goals = DatabaseManager.get_goals(user_id)
@@ -1267,10 +1097,13 @@ with tabs[4]:
                         st.rerun()
                 st.divider()
 
+    # Подвкладка 3: Таблица лидеров
     with g_tab3:
         st.markdown("##### 🌐 Рейтинг операторов системы NeuroGuard")
         df_lb = DatabaseManager.get_leaderboard()
         st.dataframe(df_lb, use_container_width=True, hide_index=True)
+
+
 # ------------------------------------------------------------------------------
 # ВКЛАДКА 6: ИНТЕЛЛЕКТУАЛЬНАЯ БАЗА ЗНАНИЙ (40 КНИГ С ИНТЕРАКТИВНЫМ СТАТУСОМ)
 # ------------------------------------------------------------------------------
@@ -1278,6 +1111,7 @@ with tabs[5]:
     st.markdown("#### 📚 Фундаментальная библиотека оператора (40 книг)")
     st.caption("Отборная литература по алгоритмам, когнитивной психологии, биохакингу ЦНС и спортивной дисциплине.")
 
+    # Инициализация интерактивных статусов книг в сессии
     if "book_statuses" not in st.session_state:
         st.session_state.book_statuses = {
             b["title"]: b["status"]
@@ -1285,6 +1119,7 @@ with tabs[5]:
             for b in sec
         }
 
+    # Сводка по библиотеке с учетом живых статусов
     all_books_flat = [b for sec in LIBRARY_CATALOG.values() for b in sec]
     read_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "Прочитано")
     proc_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "В процессе")
@@ -1354,4 +1189,4 @@ with tabs[5]:
             )
             if new_st != curr_status:
                 st.session_state.book_statuses[b_title] = new_st
-                st.rerun()
+                st.rerun() апп ру
