@@ -215,11 +215,8 @@ class DatabaseManager:
         except Exception as e:
             print(f"Ошибка работы с целями: {e}")
             return pd.DataFrame()
-
     @classmethod
-    def update_goal_progress(cls, goal_id: int, new_val: float):
-        supabase = cls.get_client()
-        try:
-            supabase.table("user_goals").update({"current_value": new_val}).eq("id", goal_id).execute()
-        except Exception as e:
-            print(f"Ошибка обновления прогресса цели: {e}")
+    def get_client(cls) -> Client:
+        url = "https://jxqrmxfzzplspfkwhrij.supabase.co"
+        key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cXJteGZ6enBsc3Bma3docmlqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxOTI1MTgsImV4cCI6MjEwNzc2ODUxOH0.95l0BaAjAN4YS9bHRYT8nfcaypvfeqKXx8v6deL-acQ"
+        return create_client(url, key)
