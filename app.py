@@ -1190,3 +1190,49 @@ with tabs[5]:
             if new_st != curr_status:
                 st.session_state.book_statuses[b_title] = new_st
                 st.rerun()
+                # Блок визуализации стрика со светофором
+    st.markdown("##### 🚦 Статус стрика и светофор активности")
+    
+    # Получаем данные из нашего движка
+    streak_data = CoreEngine.calculate_streak_traffic_light(df_rpg)
+    current_streak = streak_data["streak"]
+    status_map = streak_data["status_map"]
+
+    # Выводим текущий стрик с пояснением про 3 дня буфера
+    st.markdown(f"""
+    <div class="linear-card" style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+            <div style="font-size: 0.78rem; color: #8b949e; text-transform: uppercase;">Текущая серия (Streak)</div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #58a6ff;">🔥 {current_streak} дней подряд</div>
+        </div>
+        <div style="text-align: right; font-size: 0.8rem; color: #8b949e;">
+            Буфер защиты: <b>3 дня пропуска</b><br>до сброса стрика
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Рисуем мини-светофор из последних дней
+    st.markdown("<div style='font-size: 0.85rem; color: #8b949e; margin-bottom: 6px;'>История по дням (Светофор):</div>", unsafe_allow_html=True)
+    
+    # Генерируем HTML-блоки для отображения цвета каждого дня
+    indicators_html = "<div style='display: flex; gap: 6px; flex-wrap: wrap;'>"
+    if status_map:
+        for d_date, color_type in list(status_map.items())[-14:]: # показываем последние 14 дней
+            if color_type == "green":
+                bg_col = "#3fb950"
+                tooltip = f"{d_date}: Все выполнено (Зеленый)"
+            elif color_type == "yellow":
+                bg_col = "#d29922"
+                tooltip = f"{d_date}: Частично выполнено (Желтый)"
+            else:
+                bg_col = "#f85149"
+                tooltip = f"{d_date}: Пропуск (Красный)"
+                
+            indicators_html += f"""
+            <div title="{tooltip}" style="width: 24px; height: 24px; background-color: {bg_col}; border-radius: 4px; display: inline-block; cursor: pointer;"></div>
+            """
+    else:
+        indicators_html += "<span style='color: #8b949e; font-size: 0.85rem;'>Пока нет записей в RPG-логах. Заполни отчет за день!</span>"
+    
+    indicators_html += "</div>"
+    st.markdown(indicators_html, unsafe_allow_html=True)
