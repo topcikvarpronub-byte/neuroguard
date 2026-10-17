@@ -1189,4 +1189,4 @@ with tabs[5]:
             )
             if new_st != curr_status:
                 st.session_state.book_statuses[b_title] = new_st
-                st.rerun() апп ру
+                st.rerun()
