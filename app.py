@@ -11,15 +11,12 @@ from library_data import SKINS_CATALOG, WORKOUT_PROTOCOLS, LIBRARY_CATALOG
 # ==============================================================================
 # 1. КОНФИГУРАЦИЯ СТРАНИЦЫ И ИНИЦИАЛИЗАЦИЯ БАЗЫ
 # ==============================================================================
-st.set_
-page_config(
+st.set_page_config(
     page_title="NeuroGuard OS — Модульная система биохакинга и продуктивности",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-DatabaseManager.init_db()
 
 # ==============================================================================
 # 2. СОХРАНЕНИЕ СЕССИИ И СОСТОЯНИЙ (SESSION STATE)
