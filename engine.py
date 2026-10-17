@@ -225,7 +225,7 @@ class CoreEngine:
             lines.append("• Нет записей за период.")
         return "\n".join(lines)
 
-@staticmethod
+    @staticmethod
     def calculate_streak_traffic_light(df_rpg: pd.DataFrame) -> dict:
         """
         Рассчитывает светофор дней и стрик с буфером в 3 пропуска.
@@ -233,11 +233,9 @@ class CoreEngine:
         Желтый: заходил, но план < 80% (или есть лог)
         Красный: нет активности
         """
-        # Если логов нет, возвращаем дефолт
         if df_rpg is None or df_rpg.empty:
             return {"streak": 0, "status_map": {}, "last_color": "red"}
 
-        # Превращаем даты в словарь для быстрого доступа
         logs_dict = {}
         for _, row in df_rpg.iterrows():
             d_str = str(row["log_date"])
@@ -247,8 +245,6 @@ class CoreEngine:
         current_streak = 0
         consecutive_misses = 0
         
-        # Проходим по последним дням (или можно взять диапазон дат)
-        # Для простоты берем уникальные даты из логов, отсортированные по возрастанию
         sorted_dates = sorted(list(logs_dict.keys()))
         
         status_map = {}
@@ -257,7 +253,7 @@ class CoreEngine:
             if pct >= 80:
                 status_map[d] = "green"
                 current_streak += 1
-                consecutive_misses = 0 # сбрасываем счетчик пропусков
+                consecutive_misses = 0 
             elif pct > 0:
                 status_map[d] = "yellow"
                 current_streak += 1
@@ -265,7 +261,6 @@ class CoreEngine:
             else:
                 status_map[d] = "red"
                 consecutive_misses += 1
-                # Стрик сгорает только если пропустили 3 дня подряд
                 if consecutive_misses >= 3:
                     current_streak = 0
 
