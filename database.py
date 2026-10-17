@@ -1,262 +1,243 @@
-import sqlite3
 from datetime import date
 import pandas as pd
-
+from supabase import create_client, Client
 
 class DatabaseManager:
-    DB_NAME = "neuroguard_saas.db"
+    # Твои данные подключения к Supabase
+    SUPABASE_URL = "https://jxqrmxfzzplspfkwhrij.supabase.co"
+    SUPABASE_KEY = "Sb_secret_G05JIC-LWGWN7kalu4cDiA_AyUkJ-97"
 
     @classmethod
-    def get_conn(cls):
-        return sqlite3.connect(cls.DB_NAME)
+    def get_client(cls) -> Client:
+        return create_client(cls.SUPABASE_URL, cls.SUPABASE_KEY)
 
     @classmethod
     def init_db(cls):
-        conn = cls.get_conn()
-        c = conn.cursor()
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                pin_code TEXT NOT NULL,
-                is_pro INTEGER DEFAULT 0,
-                created_at TEXT
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS daily_health_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                log_date TEXT NOT NULL,
-                sleep_hours REAL,
-                sleep_quality INTEGER,
-                study_hours REAL,
-                eye_strain INTEGER,
-                training_type TEXT,
-                training_intensity INTEGER,
-                head_impact INTEGER,
-                readiness_score INTEGER,
-                ai_advice TEXT,
-                UNIQUE(user_id, log_date),
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS rpg_actions_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                log_date TEXT NOT NULL,
-                exercises_reps INTEGER,
-                agility_drills INTEGER,
-                book_pages INTEGER,
-                topics_learned INTEGER,
-                tasks_solved INTEGER,
-                plan_text TEXT,
-                plan_percent INTEGER,
-                total_actions INTEGER,
-                xp_earned INTEGER,
-                str_pts INTEGER,
-                agi_pts INTEGER,
-                int_pts INTEGER,
-                dsc_pts INTEGER,
-                rpg_advice TEXT,
-                daily_note TEXT DEFAULT '',
-                UNIQUE(user_id, log_date),
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS achievements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                ach_code TEXT NOT NULL,
-                unlocked_date TEXT NOT NULL,
-                UNIQUE(user_id, ach_code),
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-        """)
-
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS user_goals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                goal_period TEXT NOT NULL,
-                goal_title TEXT NOT NULL,
-                target_value REAL NOT NULL,
-                current_value REAL DEFAULT 0.0,
-                unit TEXT DEFAULT 'шт',
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-        """)
-
-        c.execute("SELECT id FROM users WHERE username = 'Igor_Founder'")
-        if not c.fetchone():
-            c.execute(
-                "INSERT INTO users (username, pin_code, is_pro, created_at) VALUES (?, ?, ?, ?)",
-                ("Igor_Founder", "0000", 1, str(date.today()))
-            )
-
-        conn.commit()
-        conn.close()
+        """
+        В Supabase таблицы создаются через веб-интерфейс (Table Editor).
+        Здесь мы можем автоматически проверять/создавать дефолтного основателя (Igor_Founder).
+        """
+        supabase = cls.get_client()
+        try:
+            res = supabase.table("users").select("id").eq("username", "Igor_Founder").execute()
+            if not res.data:
+                supabase.table("users").insert({
+                    "username": "Igor_Founder",
+                    "pin_code": "0000",
+                    "is_pro": 1,
+                    "created_at": str(date.today())
+                }).execute()
+        except Exception as e:
+            print(f"Ошибка при инициализации в Supabase: {e}")
 
     @classmethod
     def authenticate_or_register(cls, username: str, pin_code: str, create_new: bool = False):
-        conn = cls.get_conn()
-        c = conn.cursor()
+        supabase = cls.get_client()
         username = username.strip()
         if not username or not pin_code:
-            conn.close()
             return None, "Введите никнейм и PIN-код!"
 
         if create_new:
             try:
-                c.execute(
-                    "INSERT INTO users (username, pin_code, is_pro, created_at) VALUES (?, ?, 0, ?)",
-                    (username, pin_code, str(date.today()))
-                )
-                conn.commit()
-            except sqlite3.IntegrityError:
-                conn.close()
-                return None, "Пользователь с таким ником уже существует!"
+                # Проверяем, есть ли уже такой
+                existing = supabase.table("users").select("id").eq("username", username).execute()
+                if existing.data:
+                    return None, "Пользователь с таким ником уже существует!"
+                
+                # Создаем нового
+                res = supabase.table("users").insert({
+                    "username": username,
+                    "pin_code": pin_code,
+                    "is_pro": 0,
+                    "created_at": str(date.today())
+                }).execute()
+            except Exception as e:
+                return None, f"Ошибка регистрации: {e}"
 
-        c.execute(
-            "SELECT id, username, is_pro FROM users WHERE username = ? AND pin_code = ?",
-            (username, pin_code)
-        )
-        row = c.fetchone()
-        conn.close()
-        if row:
-            return {"id": row[0], "username": row[1], "is_pro": bool(row[2])}, None
+        # Авторизация
+        try:
+            res = supabase.table("users").select("id, username, is_pro").eq("username", username).eq("pin_code", pin_code).execute()
+            if res.data:
+                row = res.data[0]
+                return {"id": row["id"], "username": row["username"], "is_pro": bool(row["is_pro"])}, None
+        except Exception as e:
+            return None, f"Ошибка авторизации: {e}"
+
         return None, "Неверный никнейм или PIN-код!"
 
     @classmethod
     def set_pro_status(cls, user_id: int, is_pro: bool):
-        conn = cls.get_conn()
-        c = conn.cursor()
-        c.execute("UPDATE users SET is_pro = ? WHERE id = ?", (int(is_pro), user_id))
-        conn.commit()
-        conn.close()
+        supabase = cls.get_client()
+        try:
+            supabase.table("users").update({"is_pro": int(is_pro)}).eq("id", user_id).execute()
+        except Exception as e:
+            print(f"Ошибка обновления PRO статуса: {e}")
 
     @classmethod
     def save_health_log(cls, data: tuple):
-        conn = cls.get_conn()
-        c = conn.cursor()
-        c.execute("""
-            INSERT OR REPLACE INTO daily_health_logs (
-                user_id, log_date, sleep_hours, sleep_quality, study_hours,
-                eye_strain, training_type, training_intensity,
-                head_impact, readiness_score, ai_advice
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, data)
-        conn.commit()
-        conn.close()
+        # Распаковываем кортеж аргументов в словарь для Supabase
+        # (user_id, log_date, sleep_hours, sleep_quality, study_hours, eye_strain, training_type, training_intensity, head_impact, readiness_score, ai_advice)
+        payload = {
+            "user_id": data[0],
+            "log_date": data[1],
+            "sleep_hours": data[2],
+            "sleep_quality": data[3],
+            "study_hours": data[4],
+            "eye_strain": data[5],
+            "training_type": data[6],
+            "training_intensity": data[7],
+            "head_impact": data[8],
+            "readiness_score": data[9],
+            "ai_advice": data[10]
+        }
+        supabase = cls.get_client()
+        try:
+            # upsert заменяет запись, если совпадает UNIQUE (user_id, log_date)
+            supabase.table("daily_health_logs").upsert(payload, on_conflict="user_id,log_date").execute()
+        except Exception as e:
+            print(f"Ошибка сохранения health log: {e}")
 
     @classmethod
     def save_rpg_log(cls, data: tuple):
-        conn = cls.get_conn()
-        c = conn.cursor()
-        c.execute("""
-            INSERT OR REPLACE INTO rpg_actions_logs (
-                user_id, log_date, exercises_reps, agility_drills, book_pages,
-                topics_learned, tasks_solved, plan_text, plan_percent,
-                total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, rpg_advice, daily_note
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, data)
-        conn.commit()
-        conn.close()
+        # (user_id, log_date, exercises_reps, agility_drills, book_pages, topics_learned, tasks_solved, plan_text, plan_percent, total_actions, xp_earned, str_pts, agi_pts, int_pts, dsc_pts, rpg_advice, daily_note)
+        payload = {
+            "user_id": data[0],
+            "log_date": data[1],
+            "exercises_reps": data[2],
+            "agility_drills": data[3],
+            "book_pages": data[4],
+            "topics_learned": data[5],
+            "tasks_solved": data[6],
+            "plan_text": data[7],
+            "plan_percent": data[8],
+            "total_actions": data[9],
+            "xp_earned": data[10],
+            "str_pts": data[11],
+            "agi_pts": data[12],
+            "int_pts": data[13],
+            "dsc_pts": data[14],
+            "rpg_advice": data[15],
+            "daily_note": data[16]
+        }
+        supabase = cls.get_client()
+        try:
+            supabase.table("rpg_actions_logs").upsert(payload, on_conflict="user_id,log_date").execute()
+        except Exception as e:
+            print(f"Ошибка сохранения rpg log: {e}")
 
     @classmethod
     def load_health_logs(cls, user_id: int) -> pd.DataFrame:
-        conn = cls.get_conn()
-        df = pd.read_sql_query(
-            "SELECT * FROM daily_health_logs WHERE user_id = ? ORDER BY log_date DESC",
-            conn, params=(user_id,)
-        )
-        conn.close()
-        return df
+        supabase = cls.get_client()
+        try:
+            res = supabase.table("daily_health_logs").select("*").eq("user_id", user_id).order("log_date", desc=True).execute()
+            if res.data:
+                return pd.DataFrame(res.data)
+        except Exception as e:
+            print(f"Ошибка загрузки health logs: {e}")
+        return pd.DataFrame()
 
     @classmethod
     def load_rpg_logs(cls, user_id: int) -> pd.DataFrame:
-        conn = cls.get_conn()
-        df = pd.read_sql_query(
-            "SELECT * FROM rpg_actions_logs WHERE user_id = ? ORDER BY log_date DESC",
-            conn, params=(user_id,)
-        )
-        conn.close()
-        return df
+        supabase = cls.get_client()
+        try:
+            res = supabase.table("rpg_actions_logs").select("*").eq("user_id", user_id).order("log_date", desc=True).execute()
+            if res.data:
+                return pd.DataFrame(res.data)
+        except Exception as e:
+            print(f"Ошибка загрузки rpg logs: {e}")
+        return pd.DataFrame()
 
     @classmethod
     def unlock_achievement(cls, user_id: int, ach_code: str):
-        conn = cls.get_conn()
-        c = conn.cursor()
-        c.execute(
-            "INSERT OR IGNORE INTO achievements (user_id, ach_code, unlocked_date) VALUES (?, ?, ?)",
-            (user_id, ach_code, str(date.today()))
-        )
-        conn.commit()
-        conn.close()
+        supabase = cls.get_client()
+        try:
+            # Вставляем игнорируя дубликаты (в Supabase через upsert с do_nothing или проверкой)
+            existing = supabase.table("achievements").select("id").eq("user_id", user_id).eq("ach_code", ach_code).execute()
+            if not existing.data:
+                supabase.table("achievements").insert({
+                    "user_id": user_id,
+                    "ach_code": ach_code,
+                    "unlocked_date": str(date.today())
+                }).execute()
+        except Exception as e:
+            print(f"Ошибка разблокировки ачивки: {e}")
 
     @classmethod
     def get_unlocked_achievements(cls, user_id: int) -> dict:
-        conn = cls.get_conn()
-        c = conn.cursor()
-        c.execute("SELECT ach_code, unlocked_date FROM achievements WHERE user_id = ?", (user_id,))
-        rows = c.fetchall()
-        conn.close()
-        return {r[0]: r[1] for r in rows}
+        supabase = cls.get_client()
+        try:
+            res = supabase.table("achievements").select("ach_code, unlocked_date").eq("user_id", user_id).execute()
+            if res.data:
+                return {r["ach_code"]: r["unlocked_date"] for r in res.data}
+        except Exception as e:
+            print(f"Ошибка получения ачивок: {e}")
+        return {}
 
     @classmethod
     def get_leaderboard(cls) -> pd.DataFrame:
-        conn = cls.get_conn()
-        query = """
-            SELECT 
-                u.username AS Игрок,
-                CASE WHEN u.is_pro = 1 THEN '💎 PRO' ELSE '🆓 FREE' END AS Статус,
-                COALESCE(SUM(r.xp_earned), 0) AS Всего_XP,
-                (COALESCE(SUM(r.xp_earned), 0) / 500) + 1 AS Уровень,
-                COUNT(DISTINCT a.ach_code) AS Трофеев
-            FROM users u
-            LEFT JOIN rpg_actions_logs r ON u.id = r.user_id
-            LEFT JOIN achievements a ON u.id = a.user_id
-            GROUP BY u.id
-            ORDER BY Всего_XP DESC
-        """
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-        return df
+        supabase = cls.get_client()
+        try:
+            # Вытягиваем всех пользователей, их RPG логи и ачивки для формирования рейтинга через Pandas
+            users_res = supabase.table("users").select("id, username, is_pro").execute()
+            rpg_res = supabase.table("rpg_actions_logs").select("user_id, xp_earned").execute()
+            ach_res = supabase.table("achievements").select("user_id, ach_code").execute()
+
+            users_df = pd.DataFrame(users_res.data) if users_res.data else pd.DataFrame(columns=["id", "username", "is_pro"])
+            rpg_df = pd.DataFrame(rpg_res.data) if rpg_res.data else pd.DataFrame(columns=["user_id", "xp_earned"])
+            ach_df = pd.DataFrame(ach_res.data) if ach_res.data else pd.DataFrame(columns=["user_id", "ach_code"])
+
+            if users_df.empty:
+                return pd.DataFrame(columns=["Игрок", "Статус", "Всего_XP", "Уровень", "Трофеев"])
+
+            # Считаем сумму XP по пользователям
+            xp_grouped = rpg_df.groupby("user_id")["xp_earned"].sum().reset_index() if not rpg_df.empty else users_df[["id"]].assign(xp_earned=0)
+            
+            # Считаем уникальные ачивки по пользователям
+            ach_grouped = ach_df.groupby("user_id")["ach_code"].nunique().reset_index(name="Трофеев") if not ach_df.empty else users_df[["id"]].assign(Трофеев=0)
+
+            # Объединяем всё в один датафрейм
+            df = users_df.merge(xp_grouped, left_on="id", right_on="user_id", how="left").fillna(0)
+            df = df.merge(ach_grouped, on="id", how="left").fillna(0)
+
+            df["Статус"] = df["is_pro"].apply(lambda x: "💎 PRO" if int(x) == 1 else "🆓 FREE")
+            df["Всего_XP"] = df["xp_earned"].astype(int)
+            df["Уровень"] = (df["Всего_XP"] // 500) + 1
+            df["Игрок"] = df["username"]
+            df["Трофеев"] = df["Трофеев"].astype(int)
+
+            df = df.sort_values(by="Всего_XP", ascending=False)
+            return df[["Игрок", "Статус", "Всего_XP", "Уровень", "Трофеев"]]
+        except Exception as e:
+            print(f"Ошибка формирования лидерборда: {e}")
+            return pd.DataFrame(columns=["Игрок", "Статус", "Всего_XP", "Уровень", "Трофеев"])
 
     @classmethod
     def get_goals(cls, user_id: int) -> pd.DataFrame:
-        conn = cls.get_conn()
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM user_goals WHERE user_id = ?", (user_id,))
-        count = c.fetchone()[0]
-        
-        if count == 0:
-            defaults = [
-                (user_id, 'month', 'Закрыть план на 100% дней', 30, 5, 'дн'),
-                (user_id, 'month', 'Решить задач по коду/ЕГЭ', 100, 22, 'задач'),
-                (user_id, 'year', 'Сделать суммарно повторений ОФП', 10000, 1450, 'повт'),
-                (user_id, 'year', 'Прочитать страниц литературы', 1500, 320, 'стр')
-            ]
-            c.executemany("INSERT INTO user_goals (user_id, goal_period, goal_title, target_value, current_value, unit) VALUES (?, ?, ?, ?, ?, ?)", defaults)
-            conn.commit()
+        supabase = cls.get_client()
+        try:
+            res = supabase.table("user_goals").select("*").eq("user_id", user_id).execute()
+            if res.data and len(res.data) > 0:
+                return pd.DataFrame(res.data)
             
-        conn.close()
-        
-        conn = cls.get_conn()
-        df = pd.read_sql_query("SELECT * FROM user_goals WHERE user_id = ?", conn, params=(user_id,))
-        conn.close()
-        return df
+            # Если целей нет, создаем дефолтные
+            defaults = [
+                {"user_id": user_id, "goal_period": "month", "goal_title": "Закрыть план на 100% дней", "target_value": 30, "current_value": 5, "unit": "дн"},
+                {"user_id": user_id, "goal_period": "month", "goal_title": "Решить задач по коду/ЕГЭ", "target_value": 100, "current_value": 22, "unit": "задач"},
+                {"user_id": user_id, "goal_period": "year", "goal_title": "Сделать суммарно повторений ОФП", "target_value": 10000, "current_value": 1450, "unit": "повт"},
+                {"user_id": user_id, "goal_period": "year", "goal_title": "Прочитать страниц литературы", "target_value": 1500, "current_value": 320, "unit": "стр"}
+            ]
+            supabase.table("user_goals").insert(defaults).execute()
+
+            res_new = supabase.table("user_goals").select("*").eq("user_id", user_id).execute()
+            return pd.DataFrame(res_new.data) if res_new.data else pd.DataFrame()
+        except Exception as e:
+            print(f"Ошибка работы с целями: {e}")
+            return pd.DataFrame()
 
     @classmethod
     def update_goal_progress(cls, goal_id: int, new_val: float):
-        conn = cls.get_conn()
-        c = conn.cursor()
-        c.execute("UPDATE user_goals SET current_value = ? WHERE id = ?", (new_val, goal_id))
-        conn.commit()
-        conn.close()
+        supabase = cls.get_client()
+        try:
+            supabase.table("user_goals").update({"current_value": new_val}).eq("id", goal_id).execute()
+        except Exception as e:
+            print(f"Ошибка обновления прогресса цели: {e}")
