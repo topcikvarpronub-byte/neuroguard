@@ -1190,7 +1190,7 @@ with tabs[5]:
             if new_st != curr_status:
                 st.session_state.book_statuses[b_title] = new_st
                 st.rerun()
-                # Блок визуализации стрика со светофором
+    # Блок визуализации стрика со светофором
     st.markdown("##### 🚦 Статус стрика и светофор активности")
     
     # Получаем данные из нашего движка
