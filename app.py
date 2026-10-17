@@ -983,7 +983,51 @@ with tabs[3]:
                 time.sleep(1)
             progress_bar.progress(1.0)
             status_txt.success("✅ Таймер завершён! Отличная работа.")
+        df_lb = DatabaseManager.get_leaderboard()
+        st.dataframe(df_lb, use_container_width=True, hide_index=True)
 
+
+# ------------------------------------------------------------------------------
+# ВКЛАДКА 6: ИНТЕЛЛЕКТУАЛЬНАЯ БАЗА ЗНАНИЙ (40 КНИГ С ИНТЕРАКТИВНЫМ СТАТУСОМ)
+# ------------------------------------------------------------------------------
+with tabs[5]:
+    st.markdown("#### 📚 Фундаментальная библиотека оператора (40 книг)")
+    st.caption("Отборная литература по алгоритмам, когнитивной психологии, биохакингу ЦНС и спортивной дисциплине.")
+
+    # Инициализация интерактивных статусов книг в сессии
+    if "book_statuses" not in st.session_state:
+        st.session_state.book_statuses = {
+            b["title"]: b["status"]
+            for sec in LIBRARY_CATALOG.values()
+            for b in sec
+        }
+
+    # Сводка по библиотеке с учетом живых статусов
+    all_books_flat = [b for sec in LIBRARY_CATALOG.values() for b in sec]
+    read_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "Прочитано")
+    proc_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "В процессе")
+    plan_cnt = sum(1 for b in all_books_flat if st.session_state.book_statuses.get(b["title"], b["status"]) == "В планах")
+
+    lb_m1, lb_m2, lb_m3 = st.columns(3)
+    lb_m1.metric("✅ Прочитано полностью", f"{read_cnt} книг")
+    lb_m2.metric("📖 В процессе изучения", f"{proc_cnt} книг")
+    lb_m3.metric("📌 В очереди (В планах)", f"{plan_cnt} книг")
+
+    lib_col1, lib_col2, lib_col3 = st.columns([1.2, 1, 1])
+    with lib_col1:
+        lib_section = st.selectbox("Раздел базы знаний", ["Все разделы"] + list(LIBRARY_CATALOG.keys()))
+    with lib_col2:
+        status_book_filter = st.selectbox("Статус чтения", ["Все статусы", "Прочитано", "В процессе", "В планах"])
+    with lib_col3:
+        book_search = st.text_input("🔍 Поиск книги или автора", placeholder="Например: Кормен, Гоггинс, Python...")
+
+    books_to_show = []
+    for sec_name, book_list in LIBRARY_CATALOG.items():
+        if lib_section != "Все разделы" and sec_name != lib_section:
+            continue
+        for b in book_list:
+            curr_st = st.session_state.book_statuses.get(b["title"], b["status"])
+   
 
 # ------------------------------------------------------------------------------
 # ВКЛАДКА 5: ЗАЛ СЛАВЫ (ВСЕ 100 ДОСТИЖЕНИЙ), СТРАТЕГИЧЕСКИЕ ЦЕЛИ И ЛИДЕРБОРД
@@ -1190,49 +1234,3 @@ with tabs[5]:
             if new_st != curr_status:
                 st.session_state.book_statuses[b_title] = new_st
                 st.rerun()
-    # Блок визуализации стрика со светофором
-    st.markdown("##### 🚦 Статус стрика и светофор активности")
-    
-    # Получаем данные из нашего движка
-    streak_data = CoreEngine.calculate_streak_traffic_light(df_rpg)
-    current_streak = streak_data["streak"]
-    status_map = streak_data["status_map"]
-
-    # Выводим текущий стрик с пояснением про 3 дня буфера
-    st.markdown(f"""
-    <div class="linear-card" style="display: flex; align-items: center; justify-content: space-between;">
-        <div>
-            <div style="font-size: 0.78rem; color: #8b949e; text-transform: uppercase;">Текущая серия (Streak)</div>
-            <div style="font-size: 1.5rem; font-weight: 800; color: #58a6ff;">🔥 {current_streak} дней подряд</div>
-        </div>
-        <div style="text-align: right; font-size: 0.8rem; color: #8b949e;">
-            Буфер защиты: <b>3 дня пропуска</b><br>до сброса стрика
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Рисуем мини-светофор из последних дней
-    st.markdown("<div style='font-size: 0.85rem; color: #8b949e; margin-bottom: 6px;'>История по дням (Светофор):</div>", unsafe_allow_html=True)
-    
-    # Генерируем HTML-блоки для отображения цвета каждого дня
-    indicators_html = "<div style='display: flex; gap: 6px; flex-wrap: wrap;'>"
-    if status_map:
-        for d_date, color_type in list(status_map.items())[-14:]: # показываем последние 14 дней
-            if color_type == "green":
-                bg_col = "#3fb950"
-                tooltip = f"{d_date}: Все выполнено (Зеленый)"
-            elif color_type == "yellow":
-                bg_col = "#d29922"
-                tooltip = f"{d_date}: Частично выполнено (Желтый)"
-            else:
-                bg_col = "#f85149"
-                tooltip = f"{d_date}: Пропуск (Красный)"
-                
-            indicators_html += f"""
-            <div title="{tooltip}" style="width: 24px; height: 24px; background-color: {bg_col}; border-radius: 4px; display: inline-block; cursor: pointer;"></div>
-            """
-    else:
-        indicators_html += "<span style='color: #8b949e; font-size: 0.85rem;'>Пока нет записей в RPG-логах. Заполни отчет за день!</span>"
-    
-    indicators_html += "</div>"
-    st.markdown(indicators_html, unsafe_allow_html=True)
